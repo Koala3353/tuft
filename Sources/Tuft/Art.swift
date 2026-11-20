@@ -96,13 +96,16 @@ extension CGContext {
     }
 
     /// Fill with a soft shadow crescent along the lower right edge.
+    /// Soft volume: a light-to-shade gradient from the upper left to the lower right.
     func shaded(_ p: CGPath, _ base: UInt32, _ shade: UInt32, dx: CGFloat = -0.09, dy: CGFloat = 0.09) {
         let b = p.boundingBox
-        paint(p, shade)
         saveGState()
         addPath(p); clip()
-        translateBy(x: b.width * dx, y: b.height * dy)
-        paint(p, base)
+        let g = CGGradient(colorsSpace: sRGB, colors: [rgb(mixHex(base, 0xFFFFFF, 0.25)), rgb(base), rgb(shade)] as CFArray,
+                           locations: [0, 0.48, 1])!
+        drawLinearGradient(g, start: CGPoint(x: b.minX + b.width * 0.2, y: b.maxY),
+                           end: CGPoint(x: b.maxX - b.width * 0.1, y: b.minY),
+                           options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
         restoreGState()
     }
 
@@ -197,19 +200,24 @@ enum Draw {
         var patch: UInt32? = nil
         var whiskers = false
         var tongue = false
+        var iris: UInt32 = 0x5A3A22
+        var stripes: UInt32? = nil
+        var fluff = false
     }
 
     static func coat(_ kind: String) -> Coat {
         switch kind {
         case "cat": return Coat(body: 0xA4ADC4, shade: 0x848DA8, legs: 0x6F7893, innerEar: 0xFFC9D6, tail: 1,
-                                scarf: 0xF4727E, collar: true, whiskers: true)
+                                scarf: 0xF4727E, collar: true, whiskers: true, iris: 0x4E9A63, stripes: 0x7C849E, fluff: true)
         case "dog": return Coat(body: 0xEBC48A, shade: 0xD0A468, legs: 0xB88A50, floppy: true, tail: 2,
                                 scarf: 0x6FB7E9, collar: true, patch: 0x9A6B4F, tongue: true)
-        default: return Coat(body: 0xF39445, shade: 0xDB7430, legs: 0x5A3A2E, earTip: 0x5A3A2E, scarf: 0xF7C948)
+        default: return Coat(body: 0xF39445, shade: 0xDB7430, legs: 0x5A3A2E, earTip: 0x5A3A2E, scarf: 0xF7C948, iris: 0x9A5A1F, fluff: true)
         }
     }
 
     /// Pets face right. Box 100 x 80. phase 0/1 = walk frames, 2 = sitting / eyes closed.
+    static var iris: UInt32 = 0x5A3A22
+
     /// eyes: 0 open, 1 happy, 2 wide (surprised), 3 closed.
     static func eyes(_ c: CGContext, _ xs: [CGFloat], _ y: CGFloat, _ mode: Int, _ r: CGFloat) {
         c.setStrokeColor(rgb(0x3A3550)); c.setLineWidth(1.7); c.setLineCap(.round)
@@ -230,10 +238,12 @@ enum Draw {
                 c.move(to: CGPoint(x: x + sg * r, y: y + r * 1.5)); c.addLine(to: CGPoint(x: x - sg * r * 0.5, y: y + r * 2.1))
                 c.strokePath()
                 fallthrough
-            default:
-                c.oval(x, y, r, r * 1.15, 0x3A3550)
-                c.oval(x + r * 0.32, y + r * 0.42, r * 0.4, r * 0.4, 0xFFFFFF)
-                c.oval(x - r * 0.35, y - r * 0.4, r * 0.2, r * 0.2, 0xFFFFFF, 0.9)
+            default:                                   // dark rim, coloured iris, pupil, two catchlights
+                c.oval(x, y, r * 1.08, r * 1.22, 0x2A2438)
+                c.oval(x, y - r * 0.1, r * 0.86, r * 0.98, Draw.iris)
+                c.oval(x, y, r * 0.52, r * 0.62, 0x1A1522)
+                c.oval(x + r * 0.34, y + r * 0.46, r * 0.4, r * 0.4, 0xFFFFFF)
+                c.oval(x - r * 0.36, y - r * 0.42, r * 0.2, r * 0.2, 0xFFFFFF, 0.9)
             }
         }
     }
@@ -276,6 +286,7 @@ enum Draw {
         if kind == "egg" { egg(c, phase: phase, eyes: eyes, hat: hat); return }
         var k = coat(kind)
         if let sc = scarf { k.scarf = sc }
+        Draw.iris = k.iris
         let dark: UInt32 = 0x5A3A2E
         let sit = phase == 2
         c.oval(50, 5, 28, 4, 0x1B2050, 0.16)
@@ -324,7 +335,19 @@ enum Draw {
         c.shaded(body, k.body, k.shade)
         c.saveGState(); c.addPath(body); c.clip()
         c.oval(sit ? 56 : 52, sit ? 20 : 19, sit ? 10 : 15, sit ? 14 : 7, 0xFFF6EA)
+        if let st = k.stripes {                                    // tabby stripes along the back
+            for (x, y) in (sit ? [(40, 34), (45, 40)] : [(36, 37), (44, 39), (52, 39)]) as [(CGFloat, CGFloat)] {
+                c.saveGState(); c.translateBy(x: x, y: y); c.rotate(by: -0.25)
+                c.oval(0, 0, 2, 6, st, 0.65)
+                c.restoreGState()
+            }
+        }
         c.restoreGState()
+        if k.fluff {                                               // chest fluff
+            for (x, y, r) in [(57, 28, 4.6), (62, 26, 5.2), (66, 28, 4.4)] as [(CGFloat, CGFloat, CGFloat)] {
+                c.oval(x, sit ? y + 1 : y, r, r * 1.1, 0xFFF6EA)
+            }
+        }
         // scarf or collar
         if k.collar {
             c.paint(roundRect(55, 33.5, 19, 5.5, 2.7), k.scarf)
@@ -356,7 +379,23 @@ enum Draw {
             c.oval(hx - 10, hy - 10.5, 12, 10, 0xFFF6EA); c.oval(hx + 10, hy - 10.5, 12, 10, 0xFFF6EA)
         }
         if let patch = k.patch { c.oval(hx + 10, hy + 3, 8.5, 9.5, patch) }
+        c.oval(hx - 6, hy + 9, 8, 4.5, 0xFFFFFF, 0.16)             // soft forehead light
+        if let st = k.stripes {
+            c.setStrokeColor(rgb(st, 0.75)); c.setLineWidth(1.6); c.setLineCap(.round)
+            for dx in [-4.5, 0, 4.5] as [CGFloat] {
+                c.move(to: CGPoint(x: hx + dx, y: hy + 18)); c.addLine(to: CGPoint(x: hx + dx * 0.8, y: hy + 12.5))
+            }
+            c.strokePath()
+        }
         c.restoreGState()
+        if k.fluff {                                               // cheek tufts
+            for sgn in [-1.0, 1.0] as [CGFloat] {
+                c.saveGState()
+                c.translateBy(x: hx + sgn * 17, y: hy - 8.5); c.rotate(by: -sgn * 2.15)
+                c.paint(gumdrop(0, -2, 7.5, 8), 0xFFF6EA)
+                c.restoreGState()
+            }
+        }
         if k.floppy {
             for sgn in [-1.0, 1.0] as [CGFloat] {
                 c.saveGState()
@@ -367,6 +406,7 @@ enum Draw {
         }
         Draw.eyes(c, [hx - 9.5, hx + 9.5], hy + 0.5, eyes, 3.7)
         c.oval(hx, hy - 5.5, 2.3, 1.6, dark)
+        c.oval(hx - 0.7, hy - 5, 0.8, 0.5, 0xFFFFFF, 0.7)
         if eyes == 1 {
             c.paint(roundRect(hx - 2.6, hy - 11.5, 5.2, 4.6, 2.3), 0xE8607A)          // open, happy mouth
         } else if eyes == 2 {
@@ -399,6 +439,7 @@ enum Draw {
 
     /// Egg pet: a speckled egg on two little feet with a sprout on top.
     static func egg(_ c: CGContext, phase: Int, eyes: Int = 0, hat: Int = 0) {
+        Draw.iris = 0x6B4A2E
         let sit = phase == 2
         c.oval(50, 5, 20, 4, 0x1B2050, 0.16)
         if sit {
@@ -596,6 +637,13 @@ enum Art {
         for (x, y) in [(5, 4.5), (5, 9.5), (21, 4.5), (21, 9.5)] as [(CGFloat, CGFloat)] { c.oval(x, y, 3.6, 3.6, 0xFFF6E4) }
         c.paint(roundRect(5, 4.5, 16, 5, 2), 0xFFF6E4)
         c.paint(roundRect(6, 4.5, 14, 1.6, 0.8), 0xE6D7B8)
+    }
+    static let balloon = Sprite(26, 46) { c in
+        c.setStrokeColor(rgb(0xFFFFFF, 0.8)); c.setLineWidth(0.9)
+        c.move(to: CGPoint(x: 13, y: 0)); c.addQuadCurve(to: CGPoint(x: 13, y: 18), control: CGPoint(x: 16, y: 9)); c.strokePath()
+        c.paint(gumdrop(13, 15.5, 5, 4), 0xD9566A)
+        c.shaded(ovalPath(13, 31, 11.5, 13.5), 0xF4727E, 0xD9566A)
+        c.oval(9, 36, 2.6, 4, 0xFFFFFF, 0.5)
     }
     static let hole = Sprite(40, 12) { c in c.oval(20, 6, 19, 5.5, 0x6B5544); c.oval(20, 5.2, 16, 4, 0x2A2233) }
 

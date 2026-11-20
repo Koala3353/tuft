@@ -46,7 +46,8 @@ Everything is in the menu bar icon.
 
 ### Pets
 - **Fox, cat, dog or egg**, plus an optional second pet. Each can have a hat, a scarf or collar colour, and a name.
-- **Where they live:** both sides of the Dock, a bottom corner, on the Dock, or on the menu bar.
+- **Where they live:** both sides of the Dock, a bottom corner, on the Dock, or on the menu bar. With two pets, they spend about half the time together and half on opposite sides.
+- **Menu bar trips:** now and then a pet pops up to the menu bar by magic or balloon, strolls along it, and comes back down.
 - **They react to you:** they bounce along while you type, startle at nearby clicks, watch the pointer, nap when you're away and greet you when you come back. Rest the pointer on one to pet it.
 - **Toys:** a ball, yarn, a leaf pile and a burrow on one side of the Dock; a little house, a food bowl and a bone on the other. The burrow and the house are a shortcut between the two sides.
 - **Play with them:** pick up the ball, yarn or bone and drag it around and the pets run after it and jump for it. Let go while moving to throw it. On their own they bat the ball and yarn about and carry the bone off for a chew.
@@ -58,6 +59,7 @@ Everything is in the menu bar icon.
 
 ### Staying out of your way
 - **Calm while I work:** weather is drawn faintly over the window you're using, and thins out while you type.
+- **Weather stays behind the active window:** nothing falls in front of the window you're using at all.
 - **Focus timer:** 25 minutes with the pets asleep and a small celebration at the end.
 - **Hide during calls:** everything disappears while an app is using your microphone or camera.
 - **Ambient sound** (off by default): soft rain, wind or night crickets.

@@ -501,6 +501,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(ActionItem("Toys (ball, yarn, bone, leaves, burrow, house)", checked: s.toys) { [unowned self] in
             s.toys.toggle(); rebuildMenu()
         })
+        menu.addItem(ActionItem("Pets visit the menu bar", checked: s.barVisits) { [unowned self] in
+            s.barVisits.toggle(); rebuildMenu()
+        })
         let mood = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         mood.isEnabled = false
         menu.addItem(mood)
@@ -515,6 +518,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         focusItem = focus
         menu.addItem(ActionItem("Calm while I work", checked: s.calm) { [unowned self] in
             s.calm.toggle(); rebuildMenu()
+        })
+        menu.addItem(ActionItem("Weather stays behind the active window", checked: s.behind) { [unowned self] in
+            s.behind.toggle(); rebuildMenu()
         })
         menu.addItem(ActionItem("Hide during calls", checked: s.hideOnCalls) { [unowned self] in
             s.hideOnCalls.toggle()
