@@ -185,6 +185,7 @@ final class Particle {
     var vx: CGFloat = 0, vy: CGFloat = 0, tvy: CGFloat = 0
     var phase: CGFloat = 0, life: CGFloat = 0, maxLife: CGFloat = 1, spin: CGFloat = 0, alpha: CGFloat = 1
     var resting = false, restWin = 0
+    var vis: CGFloat = -1      // how visible it is (0 hidden behind the active window ... 1 shown); -1 = not set yet
     init(node: SKSpriteNode) { self.node = node }
 }
 
@@ -489,7 +490,7 @@ final class WeatherScene: SKScene {
         n.zPosition = 10
         p.kind = kind; p.resting = false; p.restWin = 0
         p.vx = 0; p.vy = 0; p.tvy = 0; p.spin = 0
-        p.phase = rnd(0, 6.28); p.life = 999; p.maxLife = 999; p.alpha = 1
+        p.phase = rnd(0, 6.28); p.life = 999; p.maxLife = 999; p.alpha = 1; p.vis = -1
         func use(_ s: Sprite, _ w: CGFloat, _ h: CGFloat) { n.texture = s.tex; n.size = CGSize(width: w, height: h) }
         func tint(_ hexes: [UInt32]) {
             n.color = SKColor(cgColor: rgb(hexes.randomElement()!)) ?? .white
@@ -704,7 +705,11 @@ final class WeatherScene: SKScene {
                 parts.removeLast()
             } else {
                 n.position = pos
-                n.alpha = (dim || behind) && p.kind != .heart && p.kind != .zzz && focus.contains(pos) ? (behind ? 0 : a * 0.18) : a
+                // Ease in and out, so changing the active window never makes a whole screen of weather pop in at once.
+                let inside = (dim || behind) && p.kind != .heart && p.kind != .zzz && focus.contains(pos)
+                let target: CGFloat = inside ? (behind ? 0 : 0.18) : 1
+                p.vis = p.vis < 0 ? target : p.vis + (target - p.vis) * min(1, 2.5 * dt)
+                n.alpha = a * p.vis
                 i += 1
             }
         }
