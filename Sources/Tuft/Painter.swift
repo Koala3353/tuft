@@ -261,10 +261,21 @@ enum Wallpapers {
 
     /// Uses the painted scene bundled with the app (one day and one night painting per season), washed with
     /// colour for the time of day. Falls back to the code-drawn scene when the paintings are missing.
+    /// A folder where you can drop your own pictures, named like "winter-night.jpg".
+    static var customDir: URL { dir.deletingLastPathComponent().appendingPathComponent("My Wallpapers", isDirectory: true) }
+
+    static func custom(_ name: String) -> URL? {
+        for ext in ["jpg", "jpeg", "png", "heic"] {
+            let u = customDir.appendingPathComponent("\(name).\(ext)")
+            if FileManager.default.fileExists(atPath: u.path) { return u }
+        }
+        return nil
+    }
+
     static func render(width: Int, height: Int, time: DayTime, season: Season) -> CGImage {
         let night = time == .dusk || time == .night
-        guard let url = Bundle.main.url(forResource: "\(season.rawValue)-\(night ? "night" : "day")", withExtension: "jpg",
-                                        subdirectory: "wallpapers"),
+        let name = "\(season.rawValue)-\(night ? "night" : "day")"
+        guard let url = custom(name) ?? Bundle.main.url(forResource: name, withExtension: "jpg", subdirectory: "wallpapers"),
               let src = CGImageSourceCreateWithURL(url as CFURL, nil),
               let base = CGImageSourceCreateImageAtIndex(src, 0, nil) else {
             return Painter.paint(width: width, height: height, time: time, season: season)
@@ -295,6 +306,12 @@ enum Wallpapers {
         let d = UserDefaults.standard
         var orig = d.dictionary(forKey: "origWallpapers") as? [String: String] ?? [:]
         var jobs: [(NSScreen, URL, Int, Int)] = []
+        var stamp = ""          // re-render when one of your own pictures is swapped
+        let night = time == .dusk || time == .night
+        if let c = custom("\(season.rawValue)-\(night ? "night" : "day")"),
+           let m = (try? FileManager.default.attributesOfItem(atPath: c.path))?[.modificationDate] as? Date {
+            stamp = "-c\(Int(m.timeIntervalSince1970))"
+        }
         for (i, screen) in NSScreen.screens.enumerated() {
             if orig["\(i)"] == nil, let cur = NSWorkspace.shared.desktopImageURL(for: screen),
                !cur.path.hasPrefix(dir.path) {
@@ -302,7 +319,7 @@ enum Wallpapers {
             }
             var pw = screen.frame.width * screen.backingScaleFactor, ph = screen.frame.height * screen.backingScaleFactor
             if pw > 3840 { ph *= 3840 / pw; pw = 3840 }
-            let url = dir.appendingPathComponent("tuft-\(season.rawValue)-\(time.rawValue)-\(Int(pw))x\(Int(ph))-v2.png")
+            let url = dir.appendingPathComponent("tuft-\(season.rawValue)-\(time.rawValue)-\(Int(pw))x\(Int(ph))-v2\(stamp).png")
             jobs.append((screen, url, Int(pw), Int(ph)))
         }
         d.set(orig, forKey: "origWallpapers")

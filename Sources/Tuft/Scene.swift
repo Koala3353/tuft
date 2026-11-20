@@ -104,7 +104,7 @@ final class Settings {
     func name(_ i: Int) -> String { d.string(forKey: "name\(i)") ?? "" }
     func setName(_ i: Int, _ v: String) { d.set(v, forKey: "name\(i)") }
 
-    func cheer(_ v: Double) { happy = min(100, happy + v) }
+    func cheer(_ v: Double) { happy = min(100, happy + v * 0.35) }   // scaled so play alone does not max it in seconds
     /// About one point lost every five minutes, counted even while the app was closed.
     func tickMood() {
         let now = Date().timeIntervalSince1970, gap = now - happyAt
@@ -114,6 +114,15 @@ final class Settings {
         d.set(now, forKey: "happyAt")
     }
     var moodWord: String { happy > 70 ? "Happy" : (happy > 35 ? "Content" : "Lonely") }
+}
+
+/// A loose toy the pets and the pointer can move: 0 ball, 1 yarn, 2 bone.
+final class Toy {
+    let node: SKSpriteNode
+    let kind: Int
+    var v = CGVector.zero
+    weak var carrier: PetActor?
+    init(node: SKSpriteNode, kind: Int) { self.node = node; self.kind = kind }
 }
 
 final class PetActor {
@@ -129,6 +138,7 @@ final class PetActor {
     var faceIdx = 0, faceTimer: CGFloat = 0, blinkT: CGFloat = 3, squash: CGFloat = 0
     var sit = false, again = false, inHouse = false
     var side = 1           // 0 left of the Dock, 1 right
+    var toy: Toy?          // the toy it is after or carrying
     init(slot: Int, node: SKSpriteNode, label: SKLabelNode) { self.slot = slot; self.node = node; self.label = label }
 }
 
@@ -178,6 +188,9 @@ final class WeatherScene: SKScene {
     let screenIndex: Int
     var screenFrame: CGRect
     var debug = false
+    /// When the last frame was drawn; the app delegate rebuilds the overlay if this goes stale.
+    private(set) var lastFrame = CACurrentMediaTime()
+    func touch() { lastFrame = CACurrentMediaTime() }
 
     private let cw: CGFloat = 4          // snow column width
     private var maxPile: CGFloat { CGFloat(Settings.shared.snowCap) }
@@ -209,10 +222,15 @@ final class WeatherScene: SKScene {
     private var shook = false
     private var keyStreak = 0, lastClick = 9.0, scrollT: CGFloat = 0, userIdle = 0.0, inputT: CGFloat = 0
     private var evKey = false, evCheer = false, evClick = false, evScroll = false, evBack = false, evAway = false
-    private var ball: SKSpriteNode?, pile: SKSpriteNode?, hole: SKSpriteNode?
+    private var pile: SKSpriteNode?, hole: SKSpriteNode?
+    private var toys: [Toy] = []
+    private var held: Toy?                 // the toy you are dragging
+    private let thread = SKShapeNode()     // the yarn's loose end
+    private var threadPts: [CGPoint] = []
+    private var ball: SKSpriteNode? { toys.first { $0.kind == 0 }?.node }
     private var house: SKSpriteNode?, bowl: SKSpriteNode?, snowball: SKSpriteNode?
     private var sbV: CGFloat = 0, sbR: CGFloat = 8
-    private var ballV = CGVector.zero, propsKey = "", playT: CGFloat = 12
+    private var propsKey = "", playT: CGFloat = 12
     private var barH: CGFloat = 24, notch = false
 
     /// The frontmost window on this screen; weather is drawn faint over it in calm mode.
@@ -257,6 +275,11 @@ final class WeatherScene: SKScene {
         flash.alpha = 0
         flash.zPosition = 1
         addChild(flash)
+        thread.strokeColor = SKColor(cgColor: rgb(0xF79BB8, 0.85)) ?? .systemPink
+        thread.lineWidth = 1.4
+        thread.lineJoin = .round
+        thread.zPosition = 18
+        addChild(thread)
         let saved = UserDefaults.standard.array(forKey: "decor") as? [[String: Any]] ?? []
         for e in saved where (e["screen"] as? Int ?? 0) == screenIndex {
             guard let k = e["kind"] as? String, let x = e["x"] as? Double, let y = e["y"] as? Double else { continue }
@@ -726,6 +749,11 @@ final class WeatherScene: SKScene {
 
     override func mouseDown(with event: NSEvent) {
         let p = event.location(in: self)
+        if decorAt(p) == nil, let t = toyAt(p) {                   // pick up a toy
+            if let c = t.carrier { face(c, 5, 0.6) }
+            held = t; t.carrier = nil; t.v = .zero
+            return
+        }
         guard let n = decorAt(p) else { return }
         if event.modifierFlags.contains(.control) || event.modifierFlags.contains(.option) { remove(n); return }
         dragging = n
@@ -734,6 +762,11 @@ final class WeatherScene: SKScene {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        if let t = held {
+            let q = event.location(in: self)
+            t.node.position = CGPoint(x: min(size.width - 10, max(10, q.x)), y: max(groundY(q.x) + 10, q.y))
+            return
+        }
         guard let n = dragging else { return }
         let p = event.location(in: self)
         n.position = CGPoint(x: min(size.width - 10, max(10, p.x + dragOffset.x)),
@@ -741,6 +774,12 @@ final class WeatherScene: SKScene {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if let t = held {                                          // let go: it keeps the pointer's speed
+            t.v = CGVector(dx: wind.dx * 0.6, dy: max(-200, min(520, wind.dy * 0.6)))
+            held = nil
+            excite(t)
+            return
+        }
         guard let n = dragging else { return }
         n.zPosition = 20
         dragging = nil
@@ -827,6 +866,9 @@ final class WeatherScene: SKScene {
 
     private func face(_ a: PetActor, _ f: Int, _ t: CGFloat) { a.faceIdx = f; a.faceTimer = t }
 
+    /// The other pet, when it is on the same side of the Dock.
+    private func buddy(_ a: PetActor) -> PetActor? { actors.first { $0 !== a && $0.side == a.side } }
+
     private func hop(_ a: PetActor, height: CGFloat = 22, times: Int = 1) {
         guard a.state != 1, a.node.action(forKey: "hop") == nil else { return }
         let h = height * petScale / 0.7
@@ -873,8 +915,10 @@ final class WeatherScene: SKScene {
         let key = want ? "\(spot)|\(twoSided)|\(Int(rz.lowerBound))" : ""
         guard key != propsKey else { return }
         propsKey = key
-        [ball, pile, hole, house, bowl].forEach { $0?.removeFromParent() }
-        ball = nil; pile = nil; hole = nil; house = nil; bowl = nil
+        [pile, hole, house, bowl].forEach { $0?.removeFromParent() }
+        toys.forEach { $0.node.removeFromParent() }
+        toys = []; held = nil; threadPts = []; thread.path = nil
+        pile = nil; hole = nil; house = nil; bowl = nil
         guard want else { return }
         func add(_ sp: Sprite, _ zone: ClosedRange<CGFloat>, _ fx: CGFloat, _ dy: CGFloat, _ z: CGFloat) -> SKSpriteNode {
             let n = SKSpriteNode(texture: sp.tex, size: sp.size)
@@ -886,36 +930,82 @@ final class WeatherScene: SKScene {
         }
         if spot != "dock" { hole = add(Art.hole, rz, 0.12, 13, 19) }
         pile = add(Art.pile, rz, 0.52, 15, 23)
-        ball = add(Art.ball, rz, 0.88, 12, 23)
-        ballV = .zero
+        func toy(_ kind: Int, _ sp: Sprite, _ zone: ClosedRange<CGFloat>, _ fx: CGFloat) {
+            toys.append(Toy(node: add(sp, zone, fx, kind == 2 ? 7 : 12, 23), kind: kind))
+        }
+        toy(0, Art.ball, rz, 0.88)
+        toy(1, Art.yarn, rz, 0.68)
         if twoSided {
             let lz = petZone(0)
             house = add(Art.house, lz, 0.82, 26, 19)
             bowl = add(Art.bowl, lz, 0.35, 10, 23)
+            toy(2, Art.bone, lz, 0.58)
+        } else {
+            toy(2, Art.bone, rz, 0.3)
         }
     }
 
-    private func updateBall(_ dt: CGFloat, speed: CGFloat) {
-        guard let b = ball else { return }
-        var p = b.position
-        let zone = zoneAt(p.x)
-        let floor = groundY(p.x) + 12
-        if abs(mouse.x - p.x) < 16, abs(mouse.y - p.y) < 16, speed > 150 {      // bat it with the pointer
-            ballV = CGVector(dx: max(-280, min(280, wind.dx * 0.4)), dy: 170)
+    private func toyAt(_ p: CGPoint) -> Toy? {
+        toys.last { hypot($0.node.position.x - p.x, $0.node.position.y - p.y) < 14 }
+    }
+
+    /// Send every free pet near a toy running after it.
+    private func excite(_ t: Toy) {
+        let x = t.node.position.x
+        for a in actors where (a.state == 0 || a.state == 3) && a.cooldown <= 0 {
+            let z = petZone(a.side)
+            guard x > z.lowerBound - 120, x < z.upperBound + 120 else { continue }
+            a.state = 1; a.goal = 1; a.toy = t; a.sit = false; a.again = false
+            face(a, 5, 0.4)
         }
-        guard ballV != .zero || p.y > floor + 0.5 else { return }
-        ballV.dy -= 620 * dt
-        p.x += ballV.dx * dt; p.y += ballV.dy * dt
-        if p.y <= floor {
-            p.y = floor
-            ballV.dy = abs(ballV.dy) > 50 ? -ballV.dy * 0.5 : 0
-            ballV.dx *= max(0, 1 - 2.2 * dt)
-            if abs(ballV.dx) < 4, ballV.dy == 0 { ballV = .zero }
+    }
+
+    private func updateToys(_ dt: CGFloat, speed: CGFloat) {
+        let k = petScale / 0.7
+        for t in toys {
+            let n = t.node
+            if let c = t.carrier {                                  // carried in a pet's mouth
+                if c.state == 1, c.goal == 9 {
+                    n.position = CGPoint(x: c.node.position.x + c.dir * 26 * k, y: c.node.position.y + 24 * k)
+                    continue
+                }
+                t.carrier = nil
+            }
+            if held === t { continue }
+            var p = n.position
+            let zone = zoneAt(p.x), r: CGFloat = t.kind == 2 ? 7 : 12
+            let floor = groundY(p.x) + r
+            if abs(mouse.x - p.x) < 16, abs(mouse.y - p.y) < 16, speed > 400 {     // swat it with the pointer
+                t.v = CGVector(dx: max(-280, min(280, wind.dx * 0.4)), dy: 170)
+                excite(t)
+            }
+            guard t.v != .zero || p.y > floor + 0.5 else { continue }
+            t.v.dy -= 620 * dt
+            p.x += t.v.dx * dt; p.y += t.v.dy * dt
+            if p.y <= floor {
+                p.y = floor
+                t.v.dy = abs(t.v.dy) > 50 ? -t.v.dy * (t.kind == 0 ? 0.5 : 0.22) : 0
+                t.v.dx *= max(0, 1 - (t.kind == 0 ? 2.2 : 4) * dt)
+                if abs(t.v.dx) < 4, t.v.dy == 0 { t.v = .zero }
+            }
+            if p.x < zone.lowerBound { p.x = zone.lowerBound; t.v.dx = abs(t.v.dx) }
+            else if p.x > zone.upperBound { p.x = zone.upperBound; t.v.dx = -abs(t.v.dx) }
+            n.zRotation -= t.v.dx / (t.kind == 2 ? 30 : 9) * dt
+            n.position = p
         }
-        if p.x < zone.lowerBound { p.x = zone.lowerBound; ballV.dx = abs(ballV.dx) }
-        else if p.x > zone.upperBound { p.x = zone.upperBound; ballV.dx = -abs(ballV.dx) }
-        b.zRotation -= ballV.dx / 9 * dt
-        b.position = p
+        if let h = held { excite(h) }                               // dangle a toy and they come running
+
+        // The yarn leaves a loose thread behind it as it moves.
+        if let y = toys.first(where: { $0.kind == 1 }) {
+            let q = CGPoint(x: y.node.position.x, y: y.node.position.y - 8)
+            if threadPts.isEmpty || hypot(q.x - threadPts.last!.x, q.y - threadPts.last!.y) > 7 {
+                threadPts.append(q)
+                if threadPts.count > 34 { threadPts.removeFirst() }
+                let path = CGMutablePath()
+                path.addLines(between: threadPts)
+                thread.path = path
+            }
+        }
     }
 
     /// A snowball you roll with the pointer. It grows as it rolls and turns into a snowman when big enough.
@@ -974,7 +1064,7 @@ final class WeatherScene: SKScene {
             let n = SKSpriteNode(texture: frames[0].tex, size: frames[0].size)
             n.anchorPoint = CGPoint(x: 0.5, y: 0)
             n.zPosition = 22
-            let x = (zone.lowerBound + zone.upperBound) / 2 + (slot == 0 ? -34 : 34)
+            let x = (zone.lowerBound + zone.upperBound) / 2 + (slot == 0 ? -55 : 55)
             n.position = CGPoint(x: x, y: groundY(x))
             addChild(n)
             let l = SKLabelNode(fontNamed: "AvenirNext-DemiBold")
@@ -986,7 +1076,7 @@ final class WeatherScene: SKScene {
             actors.append(a)
         }
         syncProps()
-        updateBall(dt, speed: speed)
+        updateToys(dt, speed: speed)
         updateSnowball(dt)
         guard !actors.isEmpty else { return }
 
@@ -1012,7 +1102,7 @@ final class WeatherScene: SKScene {
         if actors.count == 2 {                  // now and then one goes over to play with the other
             playT -= dt
             if playT <= 0 {
-                playT = rnd(14, 30)
+                playT = rnd(7, 15)
                 let a = actors[0], b = actors[1]
                 if a.state == 0, b.state == 0, !st.busy, !st.focusing {
                     let ax = a.node.position.x, bx = b.node.position.x
@@ -1020,7 +1110,7 @@ final class WeatherScene: SKScene {
                     if a.side != b.side, let door = a.side == 1 ? hole : house, house != nil, hole != nil {
                         a.goal = 5; a.target = door.position.x          // cross over to join the other pet
                     } else {
-                        a.goal = 4; a.target = bx + (ax < bx ? -44 : 44) * petScale / 0.7
+                        a.goal = 4; a.target = bx + (ax < bx ? -58 : 58) * petScale / 0.7
                     }
                 }
             }
@@ -1034,12 +1124,32 @@ final class WeatherScene: SKScene {
         let goal = a.goal
         a.goal = 0
         switch goal {
-        case 1:                                  // kick the ball
-            guard ball != nil else { return }
-            ballV = CGVector(dx: a.dir * rnd(140, 230), dy: rnd(140, 220))
-            face(a, 4, 1); a.squash = 0.14; a.timer = 0.9
-            a.again = Int.random(in: 0..<10) < 5
-            st.cheer(1.5)
+        case 1:                                  // reached a toy
+            guard let t = a.toy ?? toys.first else { return }
+            a.toy = t
+            if held === t {                      // you're dangling it: jump for it
+                face(a, 4, 0.7)
+                hop(a, height: max(14, min(46, (t.node.position.y - p.y) / k)))
+                a.again = true; a.timer = 0.45
+                st.cheer(0.4)
+            } else if t.carrier != nil {         // the other pet has it: tag along
+                face(a, 5, 0.6); a.timer = 1
+            } else if t.kind == 2 {              // bone: pick it up and trot off with it
+                t.carrier = a; t.v = .zero
+                a.state = 1; a.goal = 9; a.sit = false
+                a.target = abs(zone.lowerBound - p.x) > abs(zone.upperBound - p.x) ? zone.lowerBound + 30 : zone.upperBound - 30
+                face(a, 4, 1.2)
+                st.cheer(1)
+            } else {                             // ball or yarn: bat it away, and often go after it again
+                let power: CGFloat = t.kind == 1 ? 0.6 : 1
+                t.v = CGVector(dx: a.dir * rnd(140, 230) * power, dy: rnd(140, 220) * power)
+                face(a, 4, 1); a.squash = 0.14; a.timer = 0.9
+                a.again = Int.random(in: 0..<10) < (a.kind == "cat" && t.kind == 1 ? 8 : 5)
+                if let o = buddy(a), o.state == 0, Bool.random() {         // the other one joins the chase
+                    o.state = 1; o.goal = 1; o.toy = t; o.sit = false
+                }
+                st.cheer(1.5)
+            }
         case 2:                                  // jump into the leaf pile
             guard let pl = pile else { return }
             a.state = 4; a.timer = 1.3
@@ -1065,23 +1175,59 @@ final class WeatherScene: SKScene {
                                  self.emote(Art.star, x: a.node.position.x, y: a.node.position.y + 60 * k)
                              }]))
             st.cheer(1.5)
-        case 4:                                  // say hi to the other pet, then maybe a game of chase
-            guard let b = actors.first(where: { $0 !== a }), b.state == 0 else { return }
-            let bx = b.node.position.x
+        case 4:                                  // reached the other pet: do something together
+            guard let b = actors.first(where: { $0 !== a }), b.side == a.side, b.state == 0 || b.state == 2 else { return }
+            let bx = b.node.position.x, mid = (p.x + bx) / 2
             a.dir = bx > p.x ? 1 : -1; b.dir = -a.dir
-            a.timer = 1.7; b.timer = 1.7; b.sit = false
-            face(a, 4, 1.5); face(b, 4, 1.5)
-            hop(a, times: 2)
-            b.node.run(.sequence([.wait(forDuration: 0.17), .run { [weak self, weak b] in if let b { self?.hop(b, times: 2) } }]))
-            emote(Art.heart, x: (p.x + bx) / 2, y: p.y + 62 * k)
-            st.cheer(3)
-            if Bool.random() {
+            b.sit = false
+            if b.state == 2 {                    // friend is asleep: wake them with a boop
+                b.state = 0; b.timer = 1.6; a.timer = 1.6
+                face(b, 5, 0.8); hop(b, height: 14); face(a, 4, 1.2)
+                emote(Art.bang, x: bx, y: p.y + 62 * k)
+                st.cheer(1)
+                return
+            }
+            a.timer = 1.8; b.timer = 1.8
+            let pick = Int.random(in: 0..<6)
+            switch pick {
+            case 0:                              // nuzzle
+                face(a, 3, 1.6); face(b, 3, 1.6)
+                for (pet, d) in [(a, a.dir), (b, b.dir)] {
+                    pet.node.run(.sequence([.rotate(toAngle: -0.16 * d, duration: 0.25), .wait(forDuration: 0.9),
+                                            .rotate(toAngle: 0, duration: 0.2)]), withKey: "wig")
+                }
+                for i in 0..<3 { emote(Art.heart, x: mid + rnd(-8, 8), y: p.y + (54 + CGFloat(i) * 9) * k) }
+                st.cheer(4)
+            case 1:                              // dance together
+                a.state = 3; b.state = 3; a.timer = 2.2; b.timer = 2.2
+                emote(Art.note, x: p.x, y: p.y + 56 * k); emote(Art.note, x: bx, y: p.y + 64 * k)
+                st.cheer(3)
+            case 2:                              // nap side by side
+                let t = rnd(8, 12)
+                for pet in [a, b] { pet.state = 2; pet.sit = true; pet.timer = t }
+                a.z = 0.4; b.z = 1.1
+                st.cheer(2)
+            case 3 where ball != nil && zone.contains(ball!.position.x):   // fetch: one goes for the ball, then the other
+                face(a, 4, 1.4)
+                b.state = 1; b.goal = 1; b.toy = toys.first { $0.kind == 0 }
+                a.toy = b.toy
+                a.again = true; a.timer = 2.5
+                st.cheer(2)
+            case 4:                              // tag: one runs off, the other gives chase
+                face(a, 4, 1.2); face(b, 5, 0.6)
                 let far = bx - zone.lowerBound > zone.upperBound - bx ? zone.lowerBound + 20 : zone.upperBound - 20
-                n.run(.sequence([.wait(forDuration: 1.4), .run { [weak a, weak b] in
+                n.run(.sequence([.wait(forDuration: 0.7), .run { [weak a, weak b] in
                     guard let a, let b, a.state == 0, b.state == 0 else { return }
                     b.state = 1; b.goal = 0; b.target = far
-                    a.state = 1; a.goal = 0; a.target = far + (far < bx ? 46 : -46) * k
+                    a.state = 1; a.goal = 0; a.target = far + (far < bx ? 62 : -62) * k
                 }]))
+                st.cheer(2)
+            default:                             // hop hello
+                face(a, 4, 1.5); face(b, 4, 1.5)
+                hop(a, times: 2)
+                b.node.run(.sequence([.wait(forDuration: 0.17), .run { [weak self, weak b] in if let b { self?.hop(b, times: 2) } }]))
+                emote(Art.heart, x: mid, y: p.y + 62 * k)
+                st.cheer(3)
             }
         case 5:                                  // shortcut to the other side of the Dock
             guard let from = a.side == 1 ? hole : house, let to = a.side == 1 ? house : hole else { return }
@@ -1130,6 +1276,16 @@ final class WeatherScene: SKScene {
             sbV = a.dir * rnd(150, 240)
             face(a, 4, 1); a.squash = 0.14; a.timer = 1
             st.cheer(1.5)
+        case 9:                                  // put the bone down and have a chew
+            toys.first { $0.carrier === a }?.carrier = nil
+            a.state = 4; a.timer = 2.4
+            face(a, 3, 2); wiggle(a, 0.06, times: 6)
+            n.run(.sequence([.wait(forDuration: 2), .run { [weak self, weak a] in
+                guard let self, let a else { return }
+                self.face(a, 4, 1)
+                self.emote(Art.heart, x: a.node.position.x, y: a.node.position.y + 58 * k)
+            }]))
+            st.cheer(3)
         default: break
         }
     }
@@ -1180,6 +1336,12 @@ final class WeatherScene: SKScene {
             wiggle(a)
             face(a, 4, 1.6)
             st.cheer(6)
+            if let o = buddy(a), o.state == 0 {                           // the other one wants attention too
+                let tx = p.x + (o.node.position.x < p.x ? -60 : 60) * k
+                o.state = 1; o.goal = 0; o.sit = false
+                o.target = min(zone.upperBound, max(zone.lowerBound, tx))
+                face(o, 5, 0.6)
+            }
             if a.state == 2, !st.focusing { a.state = 0; a.timer = 3 }
             let name = st.name(a.slot)
             if !name.isEmpty {
@@ -1204,7 +1366,9 @@ final class WeatherScene: SKScene {
             let egg = a.kind == "egg"
             a.anim += dt
             n.texture = a.frames[Int(a.anim / (egg ? 0.22 : 0.16)) % 2].tex
-            if a.goal == 1, let b = ball { a.target = b.position.x }
+            if a.goal == 1, let t = a.toy ?? toys.first {
+                a.target = min(zone.upperBound, max(zone.lowerBound, t.node.position.x))
+            }
             if a.goal == 8, let sb = snowball { a.target = sb.position.x }
             a.dir = a.target > p.x ? 1 : -1
             p.x += a.dir * (egg ? 24 : 46) * (sad ? 0.6 : 1) * k * dt
@@ -1242,6 +1406,14 @@ final class WeatherScene: SKScene {
             if abs(mouse.x - p.x) < 320, abs(mouse.x - p.x) > 12, mouse.y < p.y + 260, speed > 20 {
                 a.dir = mouse.x > p.x ? 1 : -1                             // watch the pointer
             }
+            if let o = buddy(a), abs(o.node.position.x - p.x) < 46 * k, a.slot > o.slot || o.state != 0 {
+                let ox = o.node.position.x
+                var tx = ox + (p.x >= ox ? 1 : -1) * 66 * k                // give each other room
+                if !zone.contains(tx) { tx = ox - (p.x >= ox ? 1 : -1) * 66 * k }
+                a.state = 1; a.goal = 0; a.sit = false
+                a.target = min(zone.upperBound, max(zone.lowerBound, tx))
+                break
+            }
             guard a.timer <= 0 else { break }
             if a.again, ball != nil { a.again = false; a.state = 1; a.goal = 1; a.sit = false; break }
             let r = Int.random(in: 0..<100)
@@ -1270,7 +1442,7 @@ final class WeatherScene: SKScene {
                     return node
                 }
                 var goals: [(Int, SKSpriteNode)] = []
-                if let b = mine(ball) { goals.append((1, b)) }
+                for t in toys where t.carrier == nil { if let node = mine(t.node) { goals.append((1, node)) } }
                 if let pl = mine(pile) { goals.append((2, pl)) }
                 if let h = mine(hole) { goals.append((3, h)) }
                 if house != nil, hole != nil, let door = mine(a.side == 1 ? hole : house) {
@@ -1281,16 +1453,28 @@ final class WeatherScene: SKScene {
                 if let sb = mine(snowball) { goals.append((8, sb)); goals.append((8, sb)) }
                 if let g = goals.randomElement() {
                     a.goal = g.0; a.state = 1; a.sit = false; a.target = g.1.position.x
+                    a.toy = toys.first { $0.node === g.1 }
                     break
                 }
             }
             switch r {
             case 0..<20:
-                a.state = 1; a.sit = false; a.target = rnd(zone.lowerBound, zone.upperBound)
+                var tx = rnd(zone.lowerBound, zone.upperBound)
+                if let o = buddy(a) {
+                    for _ in 0..<5 where abs(tx - o.node.position.x) < 64 * k || (o.state == 1 && abs(tx - o.target) < 64 * k) {
+                        tx = rnd(zone.lowerBound, zone.upperBound)
+                    }
+                }
+                a.state = 1; a.sit = false; a.target = tx
             case 20..<30:
                 a.sit.toggle(); a.timer = rnd(3, 6); a.squash = 0.12
             case 30..<42:
                 hop(a, times: Int.random(in: 1...2)); face(a, 4, 0.9); a.timer = 2
+                if let o = buddy(a), o.state == 0, Bool.random() {         // the other one copies
+                    o.node.run(.sequence([.wait(forDuration: 0.3), .run { [weak self, weak o] in
+                        if let o { self?.hop(o); self?.face(o, 4, 0.8) }
+                    }]))
+                }
             case 42..<52:
                 a.state = 3; a.timer = 1.4; a.sit = false
             case 52..<60:
@@ -1329,6 +1513,7 @@ final class WeatherScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         let dt = CGFloat(min(0.05, lastTime == 0 ? 0.016 : currentTime - lastTime))
         lastTime = currentTime
+        lastFrame = CACurrentMediaTime()
         let m = NSEvent.mouseLocation
         let np = CGPoint(x: m.x - screenFrame.minX, y: m.y - screenFrame.minY)
         mouseV = CGVector(dx: (np.x - mouse.x) / max(dt, 0.001), dy: (np.y - mouse.y) / max(dt, 0.001))
@@ -1339,7 +1524,7 @@ final class WeatherScene: SKScene {
         wind = CGVector(dx: max(-900, min(900, mouseV.dx)), dy: max(-900, min(900, mouseV.dy)))
 
         // Clicks pass through everywhere except on a decoration.
-        let pass = !(dragging != nil || (!decor.isEmpty && decorAt(mouse) != nil))
+        let pass = !(dragging != nil || held != nil || (!decor.isEmpty && decorAt(mouse) != nil) || toyAt(mouse) != nil)
         if pass != passThrough { passThrough = pass; view?.window?.ignoresMouseEvents = pass }
 
         spawn(dt)

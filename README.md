@@ -47,7 +47,8 @@ Everything is in the menu bar icon.
 - **Fox, cat, dog or egg**, plus an optional second pet. Each can have a hat, a scarf or collar colour, and a name.
 - **Where they live:** both sides of the Dock, a bottom corner, on the Dock, or on the menu bar.
 - **They react to you:** they bounce along while you type, startle at nearby clicks, watch the pointer, nap when you're away and greet you when you come back. Rest the pointer on one to pet it.
-- **Toys:** a ball, a leaf pile and a burrow on one side of the Dock; a little house and a food bowl on the other. The burrow and the house are a shortcut between the two sides.
+- **Toys:** a ball, yarn, a leaf pile and a burrow on one side of the Dock; a little house, a food bowl and a bone on the other. The burrow and the house are a shortcut between the two sides.
+- **Play with them:** pick up the ball, yarn or bone and drag it around and the pets run after it and jump for it. Let go while moving to throw it. On their own they bat the ball and yarn about and carry the bone off for a chew.
 - **Mood:** petting and play make them happier. Ignored for a long time, they mope.
 
 ### Decorations

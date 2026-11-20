@@ -580,6 +580,23 @@ enum Art {
         c.shaded(roundRect(2, 1, 20, 8, 3.5), 0x6FB7E9, 0x4F97CC)
         c.paint(roundRect(1, 6.5, 22, 3, 1.5), 0x8CC8F2)
     }
+    static let yarn = Sprite(20, 20) { c in
+        let ballPath = ovalPath(10, 10, 8.5, 8.5)
+        c.shaded(ballPath, 0xF79BB8, 0xE0779A)
+        c.saveGState(); c.addPath(ballPath); c.clip()
+        c.setStrokeColor(rgb(0xFFD3E0, 0.9)); c.setLineWidth(1.1); c.setLineCap(.round)
+        for a0 in [0.3, 1.2, 2.1] as [CGFloat] {
+            c.addArc(center: CGPoint(x: 10 + cos(a0) * 5, y: 10 + sin(a0) * 5), radius: 8, startAngle: a0 + 2.2, endAngle: a0 + 4,
+                     clockwise: false)
+            c.strokePath()
+        }
+        c.restoreGState()
+    }
+    static let bone = Sprite(26, 14) { c in
+        for (x, y) in [(5, 4.5), (5, 9.5), (21, 4.5), (21, 9.5)] as [(CGFloat, CGFloat)] { c.oval(x, y, 3.6, 3.6, 0xFFF6E4) }
+        c.paint(roundRect(5, 4.5, 16, 5, 2), 0xFFF6E4)
+        c.paint(roundRect(6, 4.5, 14, 1.6, 0.8), 0xE6D7B8)
+    }
     static let hole = Sprite(40, 12) { c in c.oval(20, 6, 19, 5.5, 0x6B5544); c.oval(20, 5.2, 16, 4, 0x2A2233) }
 
     /// Frames for a pet: 0 walk A, 1 walk B, 2 asleep, 3 blink, 4 happy, 5 surprised, 6 sitting, 7 sad.

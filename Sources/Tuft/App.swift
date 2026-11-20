@@ -110,6 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var moodItem: NSMenuItem?
     private var focusItem: NSMenuItem?
     private var didApplyOnce = false
+    private var lastRebuild = CACurrentMediaTime()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -132,6 +133,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         nc.addObserver(self, selector: #selector(screensChanged), name: NSApplication.didChangeScreenParametersNotification, object: nil)
         ws.addObserver(self, selector: #selector(screensSlept), name: NSWorkspace.screensDidSleepNotification, object: nil)
         ws.addObserver(self, selector: #selector(screensWoke), name: NSWorkspace.screensDidWakeNotification, object: nil)
+        ws.addObserver(self, selector: #selector(screensWoke), name: NSWorkspace.didWakeNotification, object: nil)
+        ws.addObserver(self, selector: #selector(screensWoke), name: NSWorkspace.sessionDidBecomeActiveNotification, object: nil)
         followTimeOfDay()
         applySound()
         if s.syncWeather { syncNow() }
@@ -171,7 +174,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func screensChanged() { buildOverlays() }
     @objc private func screensSlept() { asleep = true; applyPause() }
-    @objc private func screensWoke() { asleep = false; applyPause() }
+    /// After sleep SpriteKit can leave its drawing loop stopped, so start over with fresh overlays.
+    @objc private func screensWoke() {
+        asleep = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.rebuildIfDue(force: true) }
+    }
+
+    private func rebuildIfDue(force: Bool) {
+        let now = CACurrentMediaTime()
+        guard force ? now - lastRebuild > 3 : now - lastRebuild > 10 else { return }
+        lastRebuild = now
+        buildOverlays()
+    }
 
     private func housekeeping() {
         s.busy = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .keyDown) < 5
@@ -193,7 +207,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if s.syncWeather, ticks % 1200 == 0 { syncNow() }
         refreshLiveItems()
+        // The display itself is the authority on being asleep, in case a wake notification was missed.
+        asleep = CGDisplayIsAsleep(CGMainDisplayID()) != 0
         applyPause()
+        // Watchdog: a view that should be drawing but has not produced a frame for a while is stuck.
+        let now = CACurrentMediaTime()
+        for (i, p) in panels.enumerated() where i < scenes.count {
+            if let v = p.contentView as? SKView, !v.isPaused, now - scenes[i].lastFrame > 4 {
+                rebuildIfDue(force: false)
+                break
+            }
+        }
     }
 
     /// Stop drawing when hidden, asleep, under a full-screen window, or with nothing to show.
@@ -201,7 +225,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for (i, p) in panels.enumerated() {
             guard let v = p.contentView as? SKView, i < scenes.count else { continue }
             let pause = s.hidden || asleep || scenes[i].covered || scenes[i].isIdle
-            if v.isPaused != pause { v.isPaused = pause }
+            if v.isPaused != pause {
+                v.isPaused = pause
+                if !pause { scenes[i].touch() }
+            }
+            if !pause, scenes[i].isPaused { scenes[i].isPaused = false }
             let fps = (s.smooth && s.power >= 1) ? 60 : 30
             if v.preferredFramesPerSecond != fps { v.preferredFramesPerSecond = fps }
             if s.hidden { if p.isVisible { p.orderOut(nil) } } else if !p.isVisible { p.orderFrontRegardless() }
@@ -382,6 +410,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             s.followTime = true
             applyWallpaper(DayTime.current())
         })
+        wall.addItem(ActionItem("Use my own pictures…") {
+            let dir = Wallpapers.customDir
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let note = dir.appendingPathComponent("How to use this folder.txt")
+            if !FileManager.default.fileExists(atPath: note.path) {
+                let text = """
+                Put your own pictures here and Tuft uses them instead of its built-in paintings.
+
+                Name each one for the season and whether it is the day or night picture:
+                  winter-day   winter-night   autumn-day   autumn-night
+                  spring-day   spring-night   summer-day   summer-night
+                with the ending .jpg, .png or .heic (for example: winter-night.jpg).
+
+                Seasons you leave out keep the built-in painting. Pick a time under Wallpaper to apply.
+                """
+                try? text.write(to: note, atomically: true, encoding: .utf8)
+            }
+            NSWorkspace.shared.open(dir)
+        })
         wall.addItem(ActionItem("Restore my wallpaper") { [unowned self] in
             s.wallpaperOn = false
             Wallpapers.restore()
@@ -416,7 +463,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             home.addItem(ActionItem(title, checked: s.petSpot == spot) { [unowned self] in s.petSpot = spot; rebuildMenu() })
         }
         menu.addItem(sub("Pets live", home))
-        menu.addItem(ActionItem("Toys (ball, leaves, burrow, house, bowl)", checked: s.toys) { [unowned self] in
+        menu.addItem(ActionItem("Toys (ball, yarn, bone, leaves, burrow, house)", checked: s.toys) { [unowned self] in
             s.toys.toggle(); rebuildMenu()
         })
         let mood = NSMenuItem(title: "", action: nil, keyEquivalent: "")
