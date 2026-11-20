@@ -1,0 +1,8 @@
+.build/
+build/
+.DS_Store
+preview/_*
+preview/winter-*.png
+preview/autumn-*.png
+preview/spring-*.png
+preview/summer-*.png
