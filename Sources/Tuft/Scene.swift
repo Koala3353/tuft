@@ -54,6 +54,8 @@ final class Settings {
     var hideOnCalls: Bool { didSet { d.set(hideOnCalls, forKey: "hideOnCalls") } }
     var syncWeather: Bool { didSet { d.set(syncWeather, forKey: "syncWeather") } }
     var city: String { didSet { d.set(city, forKey: "city") } }
+    /// Which of your own scenes to use as wallpaper; empty follows the weather.
+    var wallTheme: String { didSet { d.set(wallTheme, forKey: "wallTheme") } }
     var lat: Double { didSet { d.set(lat, forKey: "lat") } }
     var lon: Double { didSet { d.set(lon, forKey: "lon") } }
     /// Pet happiness, 10...100. Petting and play raise it; it drifts down when ignored.
@@ -87,6 +89,7 @@ final class Settings {
         hideOnCalls = d.bool(forKey: "hideOnCalls")
         syncWeather = d.bool(forKey: "syncWeather")
         city = d.string(forKey: "city") ?? ""
+        wallTheme = d.string(forKey: "wallTheme") ?? ""
         lat = d.double(forKey: "lat")
         lon = d.double(forKey: "lon")
         happy = d.double(forKey: "happy")

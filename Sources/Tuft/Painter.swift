@@ -272,7 +272,39 @@ enum Wallpapers {
         return nil
     }
 
-    static func render(width: Int, height: Int, time: DayTime, season: Season) -> CGImage {
+    static let timeKeys = ["dawn", "sunrise", "morning", "midday", "golden", "sunset", "dusk", "night"]
+
+    /// One of your own pictures for an exact scene and time of day, named like "snow-night.jpg".
+    static func themed(_ theme: String, _ time: DayTime) -> URL? {
+        theme.isEmpty ? nil : custom("\(theme)-\(timeKeys[time.rawValue])")
+    }
+
+    /// Scene names found in your pictures folder (anything that has a "-night" picture).
+    static func themes() -> [String] {
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: customDir.path)) ?? []
+        let seasons: Set<String> = ["winter", "autumn", "spring", "summer"]
+        var found = Set<String>()
+        for f in files {
+            let base = (f as NSString).deletingPathExtension
+            if base.hasSuffix("-night") {
+                let name = String(base.dropLast(6))
+                if !(seasons.contains(name) && custom("\(name)-dawn") == nil) { found.insert(name) }
+            }
+        }
+        return found.sorted()
+    }
+
+    static func render(width: Int, height: Int, time: DayTime, season: Season, theme: String = "") -> CGImage {
+        if let u = themed(theme, time), let src = CGImageSourceCreateWithURL(u as CFURL, nil),
+           let img = CGImageSourceCreateImageAtIndex(src, 0, nil) {
+            let w = CGFloat(width), h = CGFloat(height)
+            return makeImage(w, h, scale: 1) { c in                // already painted for this time: no tint
+                c.interpolationQuality = .high
+                let k = max(w / CGFloat(img.width), h / CGFloat(img.height))
+                let dw = CGFloat(img.width) * k, dh = CGFloat(img.height) * k
+                c.draw(img, in: CGRect(x: (w - dw) / 2, y: (h - dh) / 2, width: dw, height: dh))
+            }
+        }
         let night = time == .dusk || time == .night
         let name = "\(season.rawValue)-\(night ? "night" : "day")"
         guard let url = custom(name) ?? Bundle.main.url(forResource: name, withExtension: "jpg", subdirectory: "wallpapers"),
@@ -302,7 +334,7 @@ enum Wallpapers {
         }
     }
 
-    static func apply(time: DayTime, season: Season) {
+    static func apply(time: DayTime, season: Season, theme: String = "") {
         let d = UserDefaults.standard
         var orig = d.dictionary(forKey: "origWallpapers") as? [String: String] ?? [:]
         var jobs: [(NSScreen, URL, Int, Int)] = []
@@ -311,6 +343,10 @@ enum Wallpapers {
         if let c = custom("\(season.rawValue)-\(night ? "night" : "day")"),
            let m = (try? FileManager.default.attributesOfItem(atPath: c.path))?[.modificationDate] as? Date {
             stamp = "-c\(Int(m.timeIntervalSince1970))"
+        }
+        if let c = themed(theme, time),
+           let m = (try? FileManager.default.attributesOfItem(atPath: c.path))?[.modificationDate] as? Date {
+            stamp = "-t\(theme)\(Int(m.timeIntervalSince1970))"
         }
         for (i, screen) in NSScreen.screens.enumerated() {
             if orig["\(i)"] == nil, let cur = NSWorkspace.shared.desktopImageURL(for: screen),
@@ -325,7 +361,7 @@ enum Wallpapers {
         d.set(orig, forKey: "origWallpapers")
         DispatchQueue.global(qos: .userInitiated).async {
             for j in jobs where !FileManager.default.fileExists(atPath: j.1.path) {
-                writePNG(render(width: j.2, height: j.3, time: time, season: season), to: j.1)
+                writePNG(render(width: j.2, height: j.3, time: time, season: season, theme: theme), to: j.1)
             }
             DispatchQueue.main.async {
                 for j in jobs { try? NSWorkspace.shared.setDesktopImageURL(j.1, for: j.0, options: [:]) }

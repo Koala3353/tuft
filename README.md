@@ -42,6 +42,7 @@ Everything is in the menu bar icon.
 - Eight painted scenes: a day and a night painting for each season, tinted for dawn, sunrise, morning, midday, golden hour, sunset, dusk and night.
 - The season follows the weather you pick. **Follow time of day** changes the tint as the day goes on.
 - **Restore my wallpaper** puts your own picture back.
+- **Use my own pictures:** opens a folder for your own images. Name them by season (`winter-night.jpg`) or as a full scene with one picture per time of day (`snow-dawn.jpg` … `snow-night.jpg`); full scenes show up under **Wallpaper ▸ Scene**.
 
 ### Pets
 - **Fox, cat, dog or egg**, plus an optional second pet. Each can have a hat, a scarf or collar colour, and a name.

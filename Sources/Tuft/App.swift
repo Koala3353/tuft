@@ -295,11 +295,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if now.rawValue != s.wallTime || !didApplyOnce { applyWallpaper(now) }
     }
 
+    /// The scene from your own pictures: the one you picked, or the one that goes with the weather.
+    private var sceneTheme: String {
+        if !s.wallTheme.isEmpty { return s.wallTheme }
+        switch s.weather {
+        case .snow: return "snow"
+        case .leaves: return "autumn"
+        case .rain: return "rain"
+        case .starfall: return "stars"
+        case .fireflies: return "fireflies"
+        case .sakura: return "sky"
+        case .off: return "village"
+        }
+    }
+
     private func applyWallpaper(_ t: DayTime) {
         didApplyOnce = true
         s.wallpaperOn = true
         s.wallTime = t.rawValue
-        Wallpapers.apply(time: t, season: s.weather.season)
+        Wallpapers.apply(time: t, season: s.weather.season, theme: sceneTheme)
         rebuildMenu()
     }
 
@@ -410,6 +424,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             s.followTime = true
             applyWallpaper(DayTime.current())
         })
+        let found = Wallpapers.themes()
+        if !found.isEmpty {
+            let scene = NSMenu()
+            scene.addItem(ActionItem("Match the weather", checked: s.wallTheme.isEmpty) { [unowned self] in
+                s.wallTheme = ""
+                applyWallpaper(s.followTime ? DayTime.current() : (DayTime(rawValue: s.wallTime) ?? .night))
+            })
+            scene.addItem(.separator())
+            for name in found {
+                scene.addItem(ActionItem(name.capitalized, checked: s.wallTheme == name) { [unowned self] in
+                    s.wallTheme = name
+                    applyWallpaper(s.followTime ? DayTime.current() : (DayTime(rawValue: s.wallTime) ?? .night))
+                })
+            }
+            wall.addItem(sub("Scene (my pictures)", scene))
+        }
         wall.addItem(ActionItem("Use my own pictures…") {
             let dir = Wallpapers.customDir
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -424,6 +454,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 with the ending .jpg, .png or .heic (for example: winter-night.jpg).
 
                 Seasons you leave out keep the built-in painting. Pick a time under Wallpaper to apply.
+
+                For a full set with its own picture for every time of day, name them scene-time, for example
+                snow-night.jpg, where time is one of: dawn sunrise morning midday golden sunset dusk night.
+                Each scene then appears under Wallpaper > Scene. The scenes snow, autumn, rain, stars,
+                fireflies, sky and village are also picked automatically to match the weather.
                 """
                 try? text.write(to: note, atomically: true, encoding: .utf8)
             }
