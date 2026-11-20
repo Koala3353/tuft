@@ -112,7 +112,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var didApplyOnce = false
     private var lastRebuild = CACurrentMediaTime()
 
+    private var demoWindow: NSWindow?
+
+    /// `--demo <time 0-7>`: a mock desktop in its own window, so clips can be recorded without showing a real screen.
+    private func startDemo(time: Int) {
+        s.demo = true
+        let frame = CGRect(x: 60, y: 130, width: 1200, height: 750)
+        let win = NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        win.level = .floating
+        win.backgroundColor = .black
+        let view = SKView(frame: CGRect(origin: .zero, size: frame.size))
+        let scene = WeatherScene(screen: NSScreen.screens[0], index: 0)
+        scene.enterDemo(frame: frame, time: DayTime(rawValue: time) ?? .night)
+        view.presentScene(scene)
+        win.contentView = view
+        win.orderFrontRegardless()
+        demoWindow = win
+        scenes = [scene]
+        pollTimer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
+            guard let sc = self?.scenes.first else { return }
+            let r = sc.demoWindow, top = NSScreen.screens[0].frame.height
+            sc.setWindows([Win(id: 9001, rect: CGRect(x: frame.minX + r.minX, y: top - (frame.minY + r.maxY),
+                                                      width: r.width, height: r.height))], dt: 0.1)
+        }
+        RunLoop.main.add(pollTimer!, forMode: .common)
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let i = CommandLine.arguments.firstIndex(of: "--demo") {
+            startDemo(time: i + 1 < CommandLine.arguments.count ? Int(CommandLine.arguments[i + 1]) ?? 7 : 7)
+            return
+        }
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         s.tickMood()
         buildOverlays()

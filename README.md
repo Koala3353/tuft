@@ -4,9 +4,23 @@ A small menu bar app for macOS that puts weather, painted wallpapers and a pet o
 
 Snow piles up on your windows and slides off when you drag them. A fox, cat, dog or egg lives beside the Dock, reacts to what you do, and stays out of the way while you work.
 
-![The four pets with their expressions, hats and decorations](preview/characters.png)
+![Snow falling on a night scene, piling on a window and the Dock, with a fox and a cat playing beside the Dock](preview/demo-snow.gif)
 
-![The eight painted scenes: day and night for each season](preview/wallpapers.jpg)
+*Recorded from the app. The window and Dock here are a mock desktop; on your Mac it is your real windows and Dock.*
+
+## See it
+
+| Autumn leaves, golden hour | Spring petals, morning |
+|---|---|
+| ![Leaves drifting over an autumn lake scene with a fox and a dog](preview/demo-autumn.gif) | ![Cherry petals over a spring scene with a fox and an egg pet](preview/demo-spring.gif) |
+
+**The pets**, each shown normal, happy (with a hat), surprised, sad and asleep, plus the decorations:
+
+![Fox, cat, dog and egg pets with their expressions, and the snow bun, tree, lantern and gift](preview/characters.png)
+
+**The built-in wallpapers**, a day and a night painting for each season:
+
+![Eight painted scenes: winter, autumn, spring and summer, by day and by night](preview/wallpapers.jpg)
 
 ## Install
 

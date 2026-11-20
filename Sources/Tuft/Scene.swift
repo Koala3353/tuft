@@ -74,6 +74,7 @@ final class Settings {
     var celebrate = false
     var focusing: Bool { focusEnd != nil }
     var hidden: Bool { paused || quiet }
+    var demo = false           // recording the README clips in a stand-alone window
 
     private init() {
         d.register(defaults: ["weather": "snow", "intensity": 1.0, "pet": "fox", "petSpot": "sides", "calm": true,
@@ -958,7 +959,7 @@ final class WeatherScene: SKScene {
         let key = secs(.keyDown), click = secs(.leftMouseDown), scroll = secs(.scrollWheel)
         let any = min(key, click, scroll, secs(.mouseMoved))
         evBack = userIdle > 40 && any < 1
-        evAway = any > 40
+        evAway = any > 40 && !Settings.shared.demo
         userIdle = any
         evKey = key < 0.13
         if evKey { keyStreak += 1 } else if key > 2.5 {
@@ -1644,6 +1645,46 @@ final class WeatherScene: SKScene {
         let sc = scaleOf(a)
         n.yScale = sc * (1 + breath - a.squash)
         n.xScale = sc * a.dir * (1 - breath * 0.5 + a.squash * 0.6)
+    }
+
+    // MARK: Demo scene (a stand-alone window with a mock desktop, used to record the README clips)
+
+    private(set) var demoWindow = CGRect.zero
+
+    func enterDemo(frame: CGRect, time: DayTime) {
+        screenFrame = frame
+        let w = frame.width, h = frame.height
+        barH = 26; notch = false
+        let d = CGRect(x: w / 2 - 250, y: 0, width: 500, height: 56)
+        dock = d
+        let img = Wallpapers.render(width: Int(w * 2), height: Int(h * 2), time: time, season: Settings.shared.weather.season)
+        let bg = SKSpriteNode(texture: SKTexture(cgImage: img), size: frame.size)
+        bg.anchorPoint = .zero
+        bg.zPosition = -100
+        addChild(bg)
+        func box(_ r: CGRect, _ radius: CGFloat, _ hex: UInt32, _ a: CGFloat, _ z: CGFloat) {
+            let n = SKShapeNode(rect: r, cornerRadius: radius)
+            n.fillColor = SKColor(cgColor: rgb(hex, a)) ?? .gray
+            n.strokeColor = .clear
+            n.zPosition = z
+            addChild(n)
+        }
+        box(CGRect(x: 0, y: h - 26, width: w, height: 26), 0, 0x000000, 0.28, -60)
+        box(CGRect(x: d.minX, y: 5, width: d.width, height: 50), 14, 0xFFFFFF, 0.28, -60)
+        for (i, c) in ([0x4FB7A8, 0xF4727E, 0xF7C948, 0x6FB7E9, 0xB58AE0, 0x57AD8C, 0xF39445, 0x8A93B8] as [UInt32]).enumerated() {
+            box(CGRect(x: d.minX + 16 + CGFloat(i) * 59.5, y: 11, width: 38, height: 38), 9, c, 0.95, -55)
+        }
+        let win = CGRect(x: w * 0.5, y: h * 0.36, width: w * 0.38, height: h * 0.4)
+        demoWindow = win
+        box(win, 10, 0x20222E, 0.97, -50)
+        box(CGRect(x: win.minX, y: win.maxY - 28, width: win.width, height: 28), 10, 0x2C2F3F, 1, -49)
+        for (i, c) in ([0xFF5F57, 0xFEBC2E, 0x28C840] as [UInt32]).enumerated() {
+            box(CGRect(x: win.minX + 12 + CGFloat(i) * 18, y: win.maxY - 19.5, width: 11, height: 11), 5.5, c, 1, -48)
+        }
+        for i in 0..<6 {
+            box(CGRect(x: win.minX + 20, y: win.maxY - 62 - CGFloat(i) * 26, width: win.width * (i % 3 == 2 ? 0.45 : 0.75), height: 9),
+                4.5, 0x8A93B8, 0.35, -48)
+        }
     }
 
     // MARK: Frame loop
