@@ -145,7 +145,8 @@ final class PetActor {
     var timer: CGFloat = 1.5, dir: CGFloat = -1, anim: CGFloat = 0, cooldown: CGFloat = 0
     var hover: CGFloat = 0, target: CGFloat = 0, z: CGFloat = 0
     var faceIdx = 0, faceTimer: CGFloat = 0, blinkT: CGFloat = 3, squash: CGFloat = 0
-    var sit = false, again = false, inHouse = false
+    var sit = false, again = false, inHouse = false, fast = false, swaying = false
+    var lastR = -9
     var side = 1           // 0 left of the Dock, 1 right
     var toy: Toy?          // the toy it is after or carrying
     var bar = false        // visiting the menu bar
@@ -244,6 +245,7 @@ final class WeatherScene: SKScene {
     private var sbV: CGFloat = 0, sbR: CGFloat = 8
     private var propsKey = "", playT: CGFloat = 12
     private var togetherT: CGFloat = 20, wantTogether = false, crossT: CGFloat = 0
+    private var workT: CGFloat = 0, workStage = 0      // how long you have been working without a real break
     private var barH: CGFloat = 24, notch = false
 
     /// The frontmost window on this screen; weather is drawn faint over it in calm mode.
@@ -937,6 +939,52 @@ final class WeatherScene: SKScene {
         }
     }
 
+    /// A small speech bubble above a pet.
+    private func say(_ a: PetActor, _ text: String, _ seconds: Double) {
+        let l = a.label, p = a.node.position, k = scaleOf(a) / 0.7
+        l.text = text
+        l.position = CGPoint(x: min(size.width - 90, max(90, p.x)), y: (onBar || a.bar) ? p.y - 22 : p.y + 78 * k)
+        l.childNode(withName: "bub")?.removeFromParent()
+        let w = l.frame.width, h = l.frame.height
+        let b = SKShapeNode(rect: CGRect(x: -w / 2 - 8, y: -5, width: w + 16, height: h + 10), cornerRadius: 9)
+        b.name = "bub"
+        b.fillColor = SKColor(cgColor: rgb(0x20222E, 0.88)) ?? .black
+        b.strokeColor = .clear
+        b.zPosition = -1
+        l.addChild(b)
+        l.removeAllActions()
+        l.alpha = 1
+        l.run(.sequence([.wait(forDuration: seconds), .fadeOut(withDuration: 0.4)]))
+    }
+
+    /// You've been at it a long while: the pets check in on you.
+    private func careMoment(_ stage: Int) {
+        let lines = [["stretch with me?", "nice focus!"], ["water break?", "you're doing great"],
+                     ["rest your eyes a sec", "proud of you"], ["long one today!", "snack time?"]]
+        for (i, a) in actors.enumerated() where a.state != 4 && !Settings.shared.focusing {
+            if a.state == 2 { a.state = 0; a.sit = false }
+            a.timer = 4
+            face(a, 4, 3.5)
+            let p = a.node.position, k = scaleOf(a) / 0.7
+            if i == 0 { say(a, lines[(stage - 1) % 4].randomElement()!, 5) }
+            switch stage % 4 {
+            case 1: a.squash = -0.24                                       // a big stretch
+            case 2: emote(Art.cup, x: p.x + a.dir * 18 * k, y: p.y + 44 * k); hop(a, height: 12)
+            case 3:
+                wiggle(a, 0.1, times: 3)
+                for j in 0..<3 { emote(Art.heart, x: p.x + rnd(-14, 14), y: p.y + (52 + CGFloat(j) * 9) * k) }
+            default:
+                hop(a, times: 2)
+                for _ in 0..<10 {
+                    let sp = make(.spark, x: p.x, y: p.y + 40 * k)
+                    let ang = rnd(0.4, 2.7), v = rnd(70, 220)
+                    sp.vx = cos(ang) * v; sp.vy = sin(ang) * v
+                }
+            }
+        }
+        Settings.shared.cheer(4)
+    }
+
     private func face(_ a: PetActor, _ f: Int, _ t: CGFloat) { a.faceIdx = f; a.faceTimer = t }
 
     /// The other pet, when it is on the same side of the Dock.
@@ -1155,6 +1203,14 @@ final class WeatherScene: SKScene {
         updateToys(dt, speed: speed)
         updateSnowball(dt)
         guard !actors.isEmpty else { return }
+
+        // Long stretches of work: the pets check in at 25, 50, 80 minutes and so on. A 5-minute break resets it.
+        if userIdle < 60 { workT += dt } else if userIdle > 300 { workT = 0; workStage = 0 }
+        let marks: [CGFloat] = [25, 50, 80, 120, 160, 200, 240, 300]
+        if workStage < marks.count, workT > marks[workStage] * 60 {
+            workStage += 1
+            careMoment(workStage)
+        }
 
         inputT += dt
         if inputT >= 0.1 { inputT = 0; pollInput() }
@@ -1398,13 +1454,15 @@ final class WeatherScene: SKScene {
         }
 
         if a.state != 2, a.state != 4 {
-            if evKey {
-                a.squash = max(a.squash, 0.09)                          // taps along with your typing
-                if keyStreak % 28 == 0, (keyStreak / 28) % actors.count == actors.firstIndex(where: { $0 === a }) {
-                    emote(Art.note, x: p.x + a.dir * 14 * k, y: p.y + 52 * k); face(a, 4, 0.7)
-                }
+            if evKey, keyStreak % 36 == 0, (keyStreak / 36) % actors.count == actors.firstIndex(where: { $0 === a }) {
+                face(a, 3, 1.4)                                             // a contented sigh, and a little something for you
+                let e = emote((keyStreak / 36) % 3 == 2 ? Art.star : Art.heart, x: p.x + a.dir * 8 * k, y: p.y + 54 * k)
+                e.node.size = CGSize(width: 9, height: 9)
             }
-            if evCheer { face(a, 4, 1.5); hop(a, times: 2); emote(Art.star, x: p.x, y: p.y + 58 * k) }
+            if evCheer {                                                    // you paused after a long stretch
+                face(a, 4, 1.8); hop(a, height: 12)
+                for i in 0..<3 { emote(Art.heart, x: p.x + rnd(-12, 12), y: p.y + (52 + CGFloat(i) * 9) * k) }
+            }
             if evClick {
                 if hypot(mouse.x - p.x, mouse.y - p.y) < 260 {
                     face(a, 5, 0.5); hop(a, height: 12)
@@ -1431,13 +1489,7 @@ final class WeatherScene: SKScene {
             }
             if a.state == 2, !st.focusing { a.state = 0; a.timer = 3 }
             let name = st.name(a.slot)
-            if !name.isEmpty {
-                a.label.text = name
-                a.label.position = CGPoint(x: p.x, y: (onBar || a.bar) ? p.y - 14 : p.y + 76 * k)
-                a.label.removeAllActions()
-                a.label.alpha = 1
-                a.label.run(.sequence([.wait(forDuration: 1.8), .fadeOut(withDuration: 0.4)]))
-            }
+            if !name.isEmpty { say(a, name, 1.8) }
         } else if a.state != 2, a.state != 4, a.cooldown <= 0 {
             if shook {                           // a window got flung nearby
                 a.cooldown = 4; face(a, 5, 0.8); hop(a, height: 14)
@@ -1450,7 +1502,7 @@ final class WeatherScene: SKScene {
 
         switch a.state {
         case 1:
-            let egg = a.kind == "egg"
+            let egg = a.kind == "egg" || a.kind == "penguin"
             a.anim += dt
             n.texture = a.frames[Int(a.anim / (egg ? 0.22 : 0.16)) % 2].tex
             if a.goal == 1, let t = a.toy ?? toys.first {
@@ -1458,12 +1510,13 @@ final class WeatherScene: SKScene {
             }
             if a.goal == 8, let sb = snowball { a.target = sb.position.x }
             a.dir = a.target > p.x ? 1 : -1
-            p.x += a.dir * (egg ? 24 : 46) * (sad ? 0.6 : 1) * k * dt
+            p.x += a.dir * (egg ? 24 : 46) * (sad ? 0.6 : 1) * (a.fast ? 2.4 : 1) * k * dt
             p.y += (groundFor(a, p.x) - p.y) * min(1, 12 * dt)
             n.position = p
             if egg { n.zRotation = sin(a.anim * 9) * 0.1 }
             if abs(a.target - p.x) < (a.goal == 0 ? 3 : 18 * k) {
                 n.zRotation = 0
+                if a.fast { a.fast = false; a.squash = 0.26 }               // skid to a stop
                 a.state = 0; a.timer = rnd(1.5, 4)
                 arrive(a, p, zone: zone)
             }
@@ -1507,9 +1560,12 @@ final class WeatherScene: SKScene {
             }
             guard a.timer <= 0 else { break }
             if a.again, ball != nil { a.again = false; a.state = 1; a.goal = 1; a.sit = false; break }
-            let r = Int.random(in: 0..<100)
-            if st.busy {                                                   // you're typing: stay put
-                a.sit = r < 55
+            var roll = Int.random(in: 0..<100)
+            if roll / 8 == a.lastR / 8 { roll = Int.random(in: 0..<100) }   // try not to do the same thing twice running
+            a.lastR = roll
+            let r = roll
+            if st.busy {                                                   // you're typing: sit quietly beside you
+                a.sit = true
                 a.timer = rnd(3, 6)
                 if r > 93 { a.state = 2; a.timer = rnd(6, 12); a.z = 0.5 }
                 break
@@ -1524,12 +1580,35 @@ final class WeatherScene: SKScene {
             }
             if st.happy > 70, r < 12 {                                     // very happy: little dance
                 emote(Art.heart, x: p.x, y: p.y + 56 * k)
-                a.state = 3; a.timer = 1.4; a.sit = false
+                a.state = 3; a.timer = rnd(1.2, 2.4); a.sit = false
                 break
             }
-            if a.bar || onBar, r < 60 {                                    // up on the bar they mostly stroll
-                a.state = 1; a.sit = false; a.target = rnd(zone.lowerBound, zone.upperBound)
-                break
+            if a.bar || onBar {                                            // up on the bar: stroll, sprint, leapfrog, peek
+                if r < 34 {
+                    a.state = 1; a.sit = false; a.target = rnd(zone.lowerBound, zone.upperBound)
+                    break
+                } else if r < 48 {                                         // sprint to the far end and skid to a stop
+                    a.state = 1; a.sit = false; a.fast = true
+                    a.target = p.x - zone.lowerBound > zone.upperBound - p.x ? zone.lowerBound + rnd(0, 120)
+                                                                             : zone.upperBound - rnd(0, 120)
+                    face(a, 4, 2)
+                    break
+                } else if r < 56, let o = buddy(a), o.state == 0, abs(o.node.position.x - p.x) < 260 {   // leapfrog
+                    let dx = o.node.position.x - p.x
+                    a.state = 4; a.timer = 0.8
+                    a.dir = dx > 0 ? 1 : -1
+                    face(a, 4, 1); face(o, 5, 0.6); o.squash = 0.2
+                    let up = SKAction.moveBy(x: dx, y: 26 * k, duration: 0.3), down = SKAction.moveBy(x: dx, y: -26 * k, duration: 0.3)
+                    up.timingMode = .easeOut; down.timingMode = .easeIn
+                    n.run(.sequence([up, down]))
+                    break
+                } else if r < 62 {                                         // lean over the edge for a look below
+                    a.state = 4; a.timer = 2
+                    face(a, 5, 1.8)
+                    n.run(.sequence([.rotate(toAngle: -0.5 * a.dir, duration: 0.25), .wait(forDuration: 1.3),
+                                     .rotate(toAngle: 0, duration: 0.2)]), withKey: "wig")
+                    break
+                }
             }
             if (76..<97).contains(r), st.toys {
                 func mine(_ node: SKSpriteNode?) -> SKSpriteNode? {
@@ -1564,14 +1643,14 @@ final class WeatherScene: SKScene {
             case 16..<24:
                 a.sit.toggle(); a.timer = rnd(3, 6); a.squash = 0.12
             case 24..<32:
-                hop(a, times: Int.random(in: 1...2)); face(a, 4, 0.9); a.timer = 2
+                hop(a, height: rnd(16, 32), times: Int.random(in: 1...3)); face(a, 4, 0.9); a.timer = rnd(1.6, 2.6)
                 if let o = buddy(a), o.state == 0, Bool.random() {         // the other one copies
                     o.node.run(.sequence([.wait(forDuration: 0.3), .run { [weak self, weak o] in
                         if let o { self?.hop(o); self?.face(o, 4, 0.8) }
                     }]))
                 }
             case 32..<40:
-                a.state = 3; a.timer = 1.4; a.sit = false
+                a.state = 3; a.timer = rnd(1.2, 2.4); a.sit = false
             case 40..<46:
                 a.dir = -a.dir; a.timer = 2
                 n.run(.sequence([.wait(forDuration: 0.6), .run { [weak a] in a?.dir *= -1 }]))
@@ -1584,7 +1663,7 @@ final class WeatherScene: SKScene {
                 n.run(.sequence([.wait(forDuration: 0.17), .run { [weak a] in a?.dir *= -1 }]))
             case 64..<76:
                 a.timer = 2.4
-                switch Int.random(in: 0..<6) {
+                switch Int.random(in: 0..<12) {
                 case 0:                                               // backflip
                     hop(a, height: 34); face(a, 4, 1)
                     n.run(.rotate(byAngle: -2 * .pi * a.dir, duration: 0.34))
@@ -1618,6 +1697,41 @@ final class WeatherScene: SKScene {
                             self.emote(Art.note, x: a.node.position.x + a.dir * 14 * k, y: a.node.position.y + 54 * k)
                         }]))
                     }
+                case 5:                                               // wave hello
+                    face(a, 4, 1.6); wiggle(a, 0.2, times: 2)
+                    if abs(mouse.x - p.x) < 500 { say(a, ["hi!", "hello!", "hey you"].randomElement()!, 1.8) }
+                case 6:                                               // somersault
+                    let room = a.dir > 0 ? zone.upperBound - p.x : p.x - zone.lowerBound
+                    if room < 70 * k { a.dir = -a.dir }
+                    a.state = 4; a.timer = 0.8
+                    face(a, 4, 1)
+                    n.run(.group([.rotate(byAngle: -2 * .pi * a.dir, duration: 0.55),
+                                  .moveBy(x: 56 * k * a.dir, y: 0, duration: 0.55)]))
+                case 7:                                               // moonwalk
+                    let room = a.dir < 0 ? zone.upperBound - p.x : p.x - zone.lowerBound
+                    a.state = 3; a.timer = 1.5
+                    if room > 60 * k { n.run(.moveBy(x: -46 * k * a.dir, y: 0, duration: 1.4)) }
+                case 8:                                               // star gazing
+                    a.sit = true; a.timer = 3.4
+                    face(a, 5, 3)
+                    for i in 0..<2 {
+                        n.run(.sequence([.wait(forDuration: 0.6 + Double(i)), .run { [weak self, weak a] in
+                            guard let self, let a else { return }
+                            self.emote(Art.star, x: a.node.position.x + rnd(-14, 14), y: a.node.position.y + 66 * k)
+                        }]))
+                    }
+                case 9:                                               // take a bow
+                    a.squash = 0.32; face(a, 3, 0.9)
+                    n.run(.sequence([.wait(forDuration: 0.7), .run { [weak self, weak a] in
+                        guard let self, let a else { return }
+                        self.face(a, 4, 1)
+                        self.emote(Art.heart, x: a.node.position.x, y: a.node.position.y + 58 * k)
+                    }]))
+                case 10:                                              // flop over, lie still, pop back up
+                    a.state = 4; a.timer = 2.3
+                    face(a, 3, 2)
+                    n.run(.sequence([.rotate(toAngle: -1.45 * a.dir, duration: 0.2), .wait(forDuration: 1.6),
+                                     .rotate(toAngle: 0, duration: 0.15), .run { [weak a] in a?.squash = 0.2 }]), withKey: "wig")
                 default:                                              // peekaboo: duck out of sight, pop back up
                     guard !a.bar, groundFor(a, p.x) < 0 else { hop(a); break }
                     a.state = 4; a.timer = 2.4
@@ -1645,6 +1759,13 @@ final class WeatherScene: SKScene {
                     wiggle(a, 0.12, times: 2); face(a, 4, 0.9)
                 }
             }
+        }
+        if st.busy, a.state == 0, n.action(forKey: "wig") == nil {
+            n.zRotation = sin(t * 1.8 + CGFloat(a.slot) * 1.3) * 0.05      // gentle sway beside you while you type
+            a.swaying = true
+        } else if a.swaying {
+            a.swaying = false
+            if n.action(forKey: "wig") == nil { n.zRotation = 0 }
         }
         let breath = sin(t * (a.state == 2 ? 1.6 : 2.6)) * (a.state == 2 ? 0.035 : 0.02)
         let sc = scaleOf(a)

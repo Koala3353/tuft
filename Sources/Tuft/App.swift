@@ -378,7 +378,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func petMenu(_ slot: Int) -> NSMenu {
         let m = NSMenu()
-        for (title, kind) in [("Fox", "fox"), ("Cat", "cat"), ("Dog", "dog"), ("Egg", "egg"), ("None", "none")] {
+        for (title, kind) in [("Fox", "fox"), ("Cat", "cat"), ("Dog", "dog"), ("Bunny", "bunny"), ("Panda", "panda"), ("Hamster", "hamster"),
+                              ("Penguin", "penguin"), ("Egg", "egg"), ("None", "none")] {
             if kind == "none" { m.addItem(.separator()) }
             m.addItem(ActionItem(title, checked: s.petKind(slot) == kind) { [unowned self] in
                 s.setPet(slot, kind); applyPause(); rebuildMenu()

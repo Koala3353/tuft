@@ -2,7 +2,7 @@
 
 A small menu bar app for macOS that puts weather, painted wallpapers and a pet on your desktop.
 
-Snow piles up on your windows and slides off when you drag them. A fox, cat, dog or egg lives beside the Dock, reacts to what you do, and stays out of the way while you work.
+Snow piles up on your windows and slides off when you drag them. A fox, cat, bunny, panda or one of four other pets lives beside the Dock, reacts to what you do, and stays out of the way while you work.
 
 ![Snow falling on a night scene, piling on a window and the Dock, with a fox and a cat playing beside the Dock](preview/demo-snow.gif)
 
@@ -14,9 +14,9 @@ Snow piles up on your windows and slides off when you drag them. A fox, cat, dog
 |---|---|
 | ![Leaves drifting over an autumn lake scene with a fox and a dog](preview/demo-autumn.gif) | ![Cherry petals over a spring scene with a fox and an egg pet](preview/demo-spring.gif) |
 
-**The pets**, each shown normal, happy (with a hat), surprised, sad and asleep, plus the decorations:
+**The eight pets**, each shown normal, happy (with a hat), surprised, sad and asleep, plus the decorations:
 
-![Fox, cat, dog and egg pets with their expressions, and the snow bun, tree, lantern and gift](preview/characters.png)
+![Fox, cat, dog, bunny, panda, hamster, penguin and egg pets with their expressions, and the snow bun, tree, lantern and gift](preview/characters.png)
 
 **The built-in wallpapers**, a day and a night painting for each season:
 
@@ -59,10 +59,10 @@ Everything is in the menu bar icon.
 - **Use my own pictures:** opens a folder for your own images. Name them by season (`winter-night.jpg`) or as a full scene with one picture per time of day (`snow-dawn.jpg` … `snow-night.jpg`); full scenes show up under **Wallpaper ▸ Scene**.
 
 ### Pets
-- **Fox, cat, dog or egg**, plus an optional second pet. Each can have a hat, a scarf or collar colour, and a name.
+- **Fox, cat, dog, bunny, panda, hamster, penguin or egg**, plus an optional second pet. Each can have a hat, a scarf or collar colour, and a name.
 - **Where they live:** both sides of the Dock, a bottom corner, on the Dock, or on the menu bar. With two pets, they spend about half the time together and half on opposite sides.
 - **Menu bar trips:** now and then a pet pops up to the menu bar by magic or balloon, strolls along it, and comes back down.
-- **They react to you:** they bounce along while you type, startle at nearby clicks, watch the pointer, nap when you're away and greet you when you come back. Rest the pointer on one to pet it.
+- **They react to you:** they sit and sway beside you while you type, check in with a little speech bubble when you have worked a long stretch, startle at nearby clicks, watch the pointer, nap when you're away and greet you when you come back. Rest the pointer on one to pet it.
 - **Toys:** a ball, yarn, a leaf pile and a burrow on one side of the Dock; a little house, a food bowl and a bone on the other. The burrow and the house are a shortcut between the two sides.
 - **Play with them:** pick up the ball, yarn or bone and drag it around and the pets run after it and jump for it. Let go while moving to throw it. On their own they bat the ball and yarn about and carry the bone off for a chew.
 - **Mood:** petting and play make them happier. Ignored for a long time, they mope.

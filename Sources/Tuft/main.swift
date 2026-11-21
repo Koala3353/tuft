@@ -23,12 +23,12 @@ if let dir = argValue("--preview") {
         writePNG(Wallpapers.render(width: 1440, height: 900, time: t, season: s),
                  to: out.appendingPathComponent("\(s.rawValue)-\(t.title.lowercased().replacingOccurrences(of: " ", with: "-")).png"))
     }
-    let sheet = makeImage(540, 540, scale: 3) { c in
-        c.setFillColor(rgb(0x2A2F66)); c.fill(CGRect(x: 0, y: 0, width: 540, height: 540))
-        for (row, kind) in ["fox", "cat", "dog", "egg"].enumerated() {
+    let sheet = makeImage(540, 960, scale: 3) { c in
+        c.setFillColor(rgb(0x2A2F66)); c.fill(CGRect(x: 0, y: 0, width: 540, height: 960))
+        for (row, kind) in ["fox", "cat", "dog", "bunny", "panda", "hamster", "penguin", "egg"].enumerated() {
             for (col, sp) in [(0, 0, 0), (0, 1, row + 1), (0, 2, 0), (0, 4, 0), (2, 3, 0)].enumerated() {
-                c.saveGState(); c.translateBy(x: 10 + CGFloat(col) * 105, y: 430 - CGFloat(row) * 104)
-                Draw.pet(c, kind, phase: sp.0, eyes: sp.1, hat: sp.2, scarf: col == 1 ? 0x4FB7A8 : nil); c.restoreGState()
+                c.saveGState(); c.translateBy(x: 10 + CGFloat(col) * 105, y: 850 - CGFloat(row) * 104)
+                Draw.pet(c, kind, phase: sp.0, eyes: sp.1, hat: sp.2 > 4 ? sp.2 - 4 : sp.2, scarf: col == 1 ? 0x4FB7A8 : nil); c.restoreGState()
             }
         }
         let items: [(CGFloat, (CGContext) -> Void)] = [(10, Draw.bun), (90, Draw.tree), (178, Draw.lantern), (232, Draw.gift)]

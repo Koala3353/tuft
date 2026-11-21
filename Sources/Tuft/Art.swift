@@ -203,6 +203,9 @@ enum Draw {
         var iris: UInt32 = 0x5A3A22
         var stripes: UInt32? = nil
         var fluff = false
+        var earKind = 0         // 0 pointed, 2 long, 3 round
+        var earColor: UInt32? = nil
+        var eyePatch: UInt32? = nil
     }
 
     static func coat(_ kind: String) -> Coat {
@@ -211,6 +214,12 @@ enum Draw {
                                 scarf: 0xF4727E, collar: true, whiskers: true, iris: 0x4E9A63, stripes: 0x7C849E, fluff: true)
         case "dog": return Coat(body: 0xEBC48A, shade: 0xD0A468, legs: 0xB88A50, floppy: true, tail: 2,
                                 scarf: 0x6FB7E9, collar: true, patch: 0x9A6B4F, tongue: true)
+        case "bunny": return Coat(body: 0xFFF3E6, shade: 0xEAD3BF, legs: 0xE2C4AC, innerEar: 0xFFC9D6, tail: 2,
+                                  scarf: 0x8CC8F2, iris: 0x7A4B3A, fluff: true, earKind: 2)
+        case "panda": return Coat(body: 0xFFFFFF, shade: 0xD9E0EC, legs: 0x2E2B38, innerEar: 0x4A4658, tail: 2,
+                                  scarf: 0xE8607A, iris: 0x3A2A22, earKind: 3, earColor: 0x2E2B38, eyePatch: 0x2E2B38)
+        case "hamster": return Coat(body: 0xF2C27E, shade: 0xD9A35C, legs: 0xD9A35C, innerEar: 0xFFC9D6, tail: 3,
+                                    scarf: 0x57AD8C, collar: true, iris: 0x3A2A22, fluff: true, earKind: 3)
         default: return Coat(body: 0xF39445, shade: 0xDB7430, legs: 0x5A3A2E, earTip: 0x5A3A2E, scarf: 0xF7C948, iris: 0x9A5A1F, fluff: true)
         }
     }
@@ -284,6 +293,7 @@ enum Draw {
 
     static func pet(_ c: CGContext, _ kind: String, phase: Int, eyes: Int = 0, hat: Int = 0, scarf: UInt32? = nil) {
         if kind == "egg" { egg(c, phase: phase, eyes: eyes, hat: hat); return }
+        if kind == "penguin" { penguin(c, phase: phase, eyes: eyes, hat: hat); return }
         var k = coat(kind)
         if let sc = scarf { k.scarf = sc }
         Draw.iris = k.iris
@@ -292,6 +302,7 @@ enum Draw {
         c.oval(50, 5, 28, 4, 0x1B2050, 0.16)
         // tail
         switch k.tail {
+        case 3: break                                              // no tail to speak of
         case 1:
             c.setStrokeColor(rgb(k.body)); c.setLineWidth(6.5); c.setLineCap(.round)
             if sit {
@@ -361,13 +372,21 @@ enum Draw {
             for (ex, tilt) in [(hx - 12.5, -0.28), (hx + 12.5, 0.28)] as [(CGFloat, CGFloat)] {
                 c.saveGState()
                 c.translateBy(x: ex, y: hy + 11); c.rotate(by: -tilt)
-                c.paint(gumdrop(0, 0, 13, 17), k.body)
-                if let tip = k.earTip {
-                    c.saveGState(); c.addPath(gumdrop(0, 0, 13, 17)); c.clip()
-                    c.oval(0, 17, 6, 6, tip)
-                    c.restoreGState()
+                if k.earKind == 2 {                                    // long bunny ears
+                    c.shaded(ovalPath(0, 13, 5.6, 15.5), k.earColor ?? k.body, k.shade)
+                    c.oval(0, 13, 2.7, 11, k.innerEar)
+                } else if k.earKind == 3 {                             // small round ears
+                    c.oval(0, 1.5, 8, 8, k.earColor ?? k.body)
+                    c.oval(0, 1.5, 4.2, 4.2, k.innerEar)
+                } else {
+                    c.paint(gumdrop(0, 0, 13, 17), k.body)
+                    if let tip = k.earTip {
+                        c.saveGState(); c.addPath(gumdrop(0, 0, 13, 17)); c.clip()
+                        c.oval(0, 17, 6, 6, tip)
+                        c.restoreGState()
+                    }
+                    c.paint(gumdrop(0, 0, 6, 9), k.innerEar)
                 }
-                c.paint(gumdrop(0, 0, 6, 9), k.innerEar)
                 c.restoreGState()
             }
         }
@@ -404,6 +423,13 @@ enum Draw {
                 c.restoreGState()
             }
         }
+        if let ep = k.eyePatch {                                   // panda eye patches
+            for sgn in [-1.0, 1.0] as [CGFloat] {
+                c.saveGState(); c.translateBy(x: hx + sgn * 9.5, y: hy); c.rotate(by: sgn * 0.35)
+                c.oval(0, 0, 6.2, 7.8, ep)
+                c.restoreGState()
+            }
+        }
         Draw.eyes(c, [hx - 9.5, hx + 9.5], hy + 0.5, eyes, 3.7)
         c.oval(hx, hy - 5.5, 2.3, 1.6, dark)
         c.oval(hx - 0.7, hy - 5, 0.8, 0.5, 0xFFFFFF, 0.7)
@@ -435,6 +461,33 @@ enum Draw {
         }
         c.oval(hx - 16, hy - 6, 4, 2.7, 0xFF9DB0, 0.7); c.oval(hx + 16, hy - 6, 4, 2.7, 0xFF9DB0, 0.7)
         Draw.hat(c, hat, hx, hy + 14)
+    }
+
+    /// Penguin pet: stands upright and waddles.
+    static func penguin(_ c: CGContext, phase: Int, eyes: Int = 0, hat: Int = 0) {
+        Draw.iris = 0x3A2A22
+        let sit = phase == 2
+        c.oval(50, 5, 22, 4, 0x1B2050, 0.16)
+        c.oval(sit ? 43 : (phase == 0 ? 41 : 44), sit ? 7 : (phase == 0 ? 6 : 8.5), 6.5, 3.4, 0xF7A84A)
+        c.oval(sit ? 57 : (phase == 0 ? 57 : 60), sit ? 7 : (phase == 0 ? 8.5 : 6), 6.5, 3.4, 0xF7A84A)
+        c.saveGState()
+        c.translateBy(x: 50, y: 7); c.rotate(by: sit ? 0 : (phase == 0 ? -0.08 : 0.08))
+        for sgn in [-1.0, 1.0] as [CGFloat] {                          // flippers
+            c.saveGState()
+            c.translateBy(x: sgn * 20, y: 32); c.rotate(by: sgn * (sit ? 0.2 : (phase == 0 ? 0.55 : 0.15)))
+            c.shaded(ovalPath(0, -7, 5, 13), 0x44558C, 0x2A3760)
+            c.restoreGState()
+        }
+        let body = ovalPath(0, 30, 22, 30)
+        c.shaded(body, 0x4A5C96, 0x2A3760)
+        c.saveGState(); c.addPath(body); c.clip()
+        c.oval(0, 21, 15.5, 25, 0xFFF9F0)
+        c.restoreGState()
+        Draw.eyes(c, [-8, 8], 39, eyes, 3.5)
+        c.paint(gumdrop(0, 29.5, 8, 5.5), 0xF7A84A)                    // beak
+        c.oval(-14.5, 32, 3.6, 2.4, 0xFF9DB0, 0.7); c.oval(14.5, 32, 3.6, 2.4, 0xFF9DB0, 0.7)
+        Draw.hat(c, hat, 0, 57)
+        c.restoreGState()
     }
 
     /// Egg pet: a speckled egg on two little feet with a sprout on top.
@@ -637,6 +690,17 @@ enum Art {
         for (x, y) in [(5, 4.5), (5, 9.5), (21, 4.5), (21, 9.5)] as [(CGFloat, CGFloat)] { c.oval(x, y, 3.6, 3.6, 0xFFF6E4) }
         c.paint(roundRect(5, 4.5, 16, 5, 2), 0xFFF6E4)
         c.paint(roundRect(6, 4.5, 14, 1.6, 0.8), 0xE6D7B8)
+    }
+    static let cup = Sprite(16, 18) { c in
+        c.setStrokeColor(rgb(0xFFFFFF, 0.8)); c.setLineWidth(1); c.setLineCap(.round)
+        for x in [5.0, 9.0] as [CGFloat] {
+            c.move(to: CGPoint(x: x, y: 12)); c.addQuadCurve(to: CGPoint(x: x, y: 17), control: CGPoint(x: x + 2, y: 14.5))
+        }
+        c.strokePath()
+        c.setStrokeColor(rgb(0xFFF1DC)); c.setLineWidth(1.6)
+        c.addArc(center: CGPoint(x: 11.5, y: 6), radius: 2.8, startAngle: -1.3, endAngle: 1.3, clockwise: false); c.strokePath()
+        c.shaded(roundRect(2.5, 1, 9.5, 10, 2.5), 0xFFF1DC, 0xE6CDAE)
+        c.paint(roundRect(3.5, 8.6, 7.5, 1.6, 0.8), 0x8A5A3C)
     }
     static let balloon = Sprite(26, 46) { c in
         c.setStrokeColor(rgb(0xFFFFFF, 0.8)); c.setLineWidth(0.9)
