@@ -62,6 +62,49 @@ enum CallWatch {
     }
 }
 
+/// Tells whether some other app is playing sound right now. It asks macOS which processes have audio output
+/// running; it never listens to the sound itself, so it needs no permission.
+enum SoundWatch {
+    static func othersPlaying() -> Bool {
+        guard #available(macOS 14.2, *) else { return false }
+        var a = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyProcessObjectList,
+                                           mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        let sys = AudioObjectID(kAudioObjectSystemObject)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(sys, &a, 0, nil, &size) == noErr, size > 0 else { return false }
+        var ids = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(sys, &a, 0, nil, &size, &ids) == noErr else { return false }
+        let me = getpid()
+        for id in ids {
+            var pid: pid_t = 0
+            var n = UInt32(MemoryLayout<pid_t>.size)
+            var pa = AudioObjectPropertyAddress(mSelector: kAudioProcessPropertyPID, mScope: kAudioObjectPropertyScopeGlobal,
+                                                mElement: kAudioObjectPropertyElementMain)
+            guard AudioObjectGetPropertyData(id, &pa, 0, nil, &n, &pid) == noErr, pid != me else { continue }
+            var running: UInt32 = 0
+            n = UInt32(MemoryLayout<UInt32>.size)
+            pa.mSelector = kAudioProcessPropertyIsRunningOutput
+            if AudioObjectGetPropertyData(id, &pa, 0, nil, &n, &running) == noErr, running != 0 { return true }
+        }
+        return false
+    }
+}
+
+/// Where the menu bar's status items are, so pets up there can play with them. Positions only: no titles, no contents.
+enum BarWatch {
+    static func items() -> [CGRect] {
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else { return [] }
+        let me = Int(getpid())
+        var out: [CGRect] = []
+        for w in list where (w[kCGWindowLayer as String] as? Int) == 25 && (w[kCGWindowOwnerPID as String] as? Int) != me {
+            guard let b = w[kCGWindowBounds as String] as? [String: Any],
+                  let r = CGRect(dictionaryRepresentation: b as CFDictionary), r.width > 8, r.width < 320, r.height < 60 else { continue }
+            out.append(r)
+        }
+        return out
+    }
+}
+
 /// Current conditions from Open-Meteo (free, no account). Only the city name and its coordinates are sent.
 enum RealWeather {
     private static func json(_ url: String, _ done: @escaping ([String: Any]?) -> Void) {
@@ -111,6 +154,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var focusItem: NSMenuItem?
     private var didApplyOnce = false
     private var lastRebuild = CACurrentMediaTime()
+    private var lastChange = CACurrentMediaTime(), pollTick = 0
+    private var soundOn = 0, soundOff = 0
 
     private var demoWindow: NSWindow?
 
@@ -129,6 +174,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         win.orderFrontRegardless()
         demoWindow = win
         scenes = [scene]
+        scene.barItems = (0..<9).map { CGRect(x: frame.width - 250 + CGFloat($0) * 26, y: frame.height - 26, width: 22, height: 26) }
+        if let i = CommandLine.arguments.firstIndex(of: "--act"), i + 1 < CommandLine.arguments.count {
+            let act = CommandLine.arguments[i + 1]
+            Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { [weak scene] _ in scene?.demoAct(act) }
+        }
         pollTimer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
             guard let sc = self?.scenes.first else { return }
             let r = sc.demoWindow, top = NSScreen.screens[0].frame.height
@@ -228,9 +278,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSSound(named: "Glass")?.play()
         }
         if ticks % 3 == 0 {
-            let quiet = s.hideOnCalls && (CallWatch.micInUse() || CallWatch.cameraInUse())
+            let call = CallWatch.micInUse() || CallWatch.cameraInUse()
+            let quiet = s.hideOnCalls && call
             if quiet != s.quiet { s.quiet = quiet; applySound() }
+            // Music: sound from another app for a few seconds running, and not a call.
+            if s.music, !call, SoundWatch.othersPlaying() { soundOn += 1; soundOff = 0 } else { soundOff += 1; soundOn = 0 }
+            if soundOn >= 2 { s.playing = true } else if soundOff >= 2 { s.playing = false }
+            refreshBarItems()
         }
+        // On battery, stop drawing altogether once you have been away for three minutes; any input brings it back.
+        let away = [CGEventType.keyDown, .leftMouseDown, .mouseMoved, .scrollWheel]
+            .map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }.min() ?? 0
+        let nap = s.power < 1 && away > 180
+        if nap != s.napping { s.napping = nap; applySound() }
         if ticks % 60 == 0 {
             refreshPower()
             followTimeOfDay()
@@ -260,19 +320,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if !pause { scenes[i].touch() }
             }
             if !pause, scenes[i].isPaused { scenes[i].isPaused = false }
-            let fps = (s.smooth && s.power >= 1) ? 60 : 30
+            let fps = s.power < 1 ? 20 : (s.smooth ? 60 : 30)       // a third fewer frames on battery
             if v.preferredFramesPerSecond != fps { v.preferredFramesPerSecond = fps }
-            if s.hidden { if p.isVisible { p.orderOut(nil) } } else if !p.isVisible { p.orderFrontRegardless() }
+            // A paused overlay is taken off screen, so a frozen frame is never left hanging over a full-size window.
+            if s.hidden || scenes[i].covered { if p.isVisible { p.orderOut(nil) } } else if !p.isVisible { p.orderFrontRegardless() }
         }
     }
 
+    /// Windows are checked ten times a second while something is moving or the mouse button is down,
+    /// and only three times a second (twice on battery) when the desktop is still.
     private func poll() {
         guard !s.hidden, !asleep else { return }
         let now = CACurrentMediaTime()
+        pollTick += 1
+        let still = now - lastChange > 1.5 && NSEvent.pressedMouseButtons == 0
+        if still, pollTick % (s.power < 1 ? 5 : 3) != 0 { return }
         let dt = CGFloat(now - lastPoll)
         lastPoll = now
         let wins = WindowTracker.poll()
-        scenes.forEach { $0.setWindows(wins, dt: dt) }
+        var changed = false
+        for sc in scenes where sc.setWindows(wins, dt: dt) { changed = true }
+        if changed { lastChange = now }
+    }
+
+    private func refreshBarItems() {
+        let items = BarWatch.items()
+        let primaryH = NSScreen.screens.first?.frame.height ?? 0
+        for sc in scenes {
+            let f = sc.screenFrame, top = primaryH - f.maxY
+            sc.barItems = items.filter { abs($0.minY - top) < 4 && $0.midX > f.minX && $0.midX < f.maxX }
+                .map { CGRect(x: $0.minX - f.minX, y: f.height - $0.height, width: $0.width, height: $0.height) }
+        }
     }
 
     private func refreshPower() {
@@ -288,7 +366,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func applySound() { Ambience.shared.set(s.weather, on: s.sound && !s.hidden) }
 
     private func setWeather(_ w: Weather, manual: Bool) {
-        if manual { s.syncWeather = false }
+        if manual {
+            s.syncWeather = false
+            // Picking what falls by hand never swaps the picture: keep the scene that is showing now.
+            if s.wallTheme.isEmpty, !Wallpapers.themes().isEmpty { s.wallTheme = sceneTheme }
+        }
         guard w != s.weather || manual else { return }
         s.weather = w
         applyPause()
@@ -423,7 +505,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             else { s.syncWeather = true; syncNow(); rebuildMenu() }
         })
         weather.addItem(ActionItem("Change city…") { [unowned self] in chooseCity(thenSync: s.syncWeather) })
-        menu.addItem(sub("Weather", weather))
+        menu.addItem(sub("Weather (what falls)", weather))
 
         let amount = NSMenu()
         for (title, v) in [("Light", 0.5), ("Normal", 1.0), ("Heavy", 1.8)] {
@@ -458,7 +540,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let found = Wallpapers.themes()
         if !found.isEmpty {
             let scene = NSMenu()
-            scene.addItem(ActionItem("Match the weather", checked: s.wallTheme.isEmpty) { [unowned self] in
+            scene.addItem(ActionItem("Change with real weather", checked: s.wallTheme.isEmpty) { [unowned self] in
                 s.wallTheme = ""
                 applyWallpaper(s.followTime ? DayTime.current() : (DayTime(rawValue: s.wallTime) ?? .night))
             })
@@ -469,7 +551,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     applyWallpaper(s.followTime ? DayTime.current() : (DayTime(rawValue: s.wallTime) ?? .night))
                 })
             }
-            wall.addItem(sub("Scene (my pictures)", scene))
+            wall.addItem(sub("Scene", scene))
         }
         wall.addItem(ActionItem("Use my own pictures…") {
             let dir = Wallpapers.customDir
@@ -534,6 +616,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         })
         menu.addItem(ActionItem("Pets visit the menu bar", checked: s.barVisits) { [unowned self] in
             s.barVisits.toggle(); rebuildMenu()
+        })
+        menu.addItem(ActionItem("Pets climb onto windows", checked: s.windowVisits) { [unowned self] in
+            s.windowVisits.toggle(); rebuildMenu()
+        })
+        menu.addItem(ActionItem("Pets dance when music plays", checked: s.music) { [unowned self] in
+            s.music.toggle()
+            if !s.music { s.playing = false }
+            rebuildMenu()
         })
         let mood = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         mood.isEnabled = false

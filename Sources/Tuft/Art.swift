@@ -226,12 +226,33 @@ enum Draw {
 
     /// Pets face right. Box 100 x 80. phase 0/1 = walk frames, 2 = sitting / eyes closed.
     static var iris: UInt32 = 0x5A3A22
+    static var shadow = true           // off when the app draws the shadow itself
+    static var ink: UInt32 = 0x3A3550  // line colour for drawn eyes
+    static var rim: UInt32 = 0x2A2438
 
-    /// eyes: 0 open, 1 happy, 2 wide (surprised), 3 closed.
+    /// eyes: 0 open, 1 happy, 2 wide (surprised), 3 closed, 4 sad, 5 laughing, 6 crying, 7 hearts, 8 dizzy.
     static func eyes(_ c: CGContext, _ xs: [CGFloat], _ y: CGFloat, _ mode: Int, _ r: CGFloat) {
-        c.setStrokeColor(rgb(0x3A3550)); c.setLineWidth(1.7); c.setLineCap(.round)
+        c.setStrokeColor(rgb(Draw.ink)); c.setLineWidth(1.7); c.setLineCap(.round); c.setLineJoin(.round)
+        let mid = xs.reduce(0, +) / CGFloat(xs.count)
         for x in xs {
+            let d: CGFloat = x < mid ? 1 : -1                  // points toward the nose
             switch mode {
+            case 5:                                            // squeezed shut with laughter: > <
+                c.move(to: CGPoint(x: x - d * r * 0.8, y: y + r * 0.95)); c.addLine(to: CGPoint(x: x + d * r * 0.8, y: y))
+                c.addLine(to: CGPoint(x: x - d * r * 0.8, y: y - r * 0.95)); c.strokePath()
+            case 6:                                            // shut tight, tears running
+                c.paint(roundRect(x - d * r * 0.45 - 1.4, y - r * 3.1, 2.8, r * 2.9, 1.4), 0x8FD0FF, 0.92)
+                c.oval(x - d * r * 0.45, y - r * 3.2, 2, 2.4, 0x8FD0FF)
+                c.oval(x - d * r * 0.45 - 0.5, y - r * 2.9, 0.6, 0.8, 0xFFFFFF, 0.9)
+                c.move(to: CGPoint(x: x - d * r * 1.05, y: y - r * 0.4))
+                c.addQuadCurve(to: CGPoint(x: x + d * r * 0.95, y: y + r * 0.5), control: CGPoint(x: x, y: y + r * 0.55))
+                c.strokePath()
+            case 7:
+                c.paint(heartPath(x, y - r * 0.1, r * 1.15), 0xFF5C8A)
+                c.oval(x - r * 0.45, y + r * 0.5, r * 0.3, r * 0.3, 0xFFFFFF, 0.9)
+            case 8:                                            // swirls
+                c.addArc(center: CGPoint(x: x, y: y), radius: r, startAngle: 0, endAngle: 4.9, clockwise: false); c.strokePath()
+                c.addArc(center: CGPoint(x: x, y: y), radius: r * 0.4, startAngle: 2, endAngle: 6.6, clockwise: false); c.strokePath()
             case 1:
                 c.addArc(center: CGPoint(x: x, y: y - 1), radius: r * 0.85, startAngle: 0.25, endAngle: .pi - 0.25, clockwise: false)
                 c.strokePath()
@@ -243,16 +264,50 @@ enum Draw {
                 c.oval(x, y, r * 0.55, r * 0.6, 0x3A3550)
                 c.oval(x + r * 0.2, y + r * 0.25, r * 0.18, r * 0.18, 0xFFFFFF)
             case 4:   // sad: worried brows over normal eyes
-                let sg: CGFloat = x < (xs.reduce(0, +) / CGFloat(xs.count)) ? -1 : 1
+                let sg: CGFloat = -d
                 c.move(to: CGPoint(x: x + sg * r, y: y + r * 1.5)); c.addLine(to: CGPoint(x: x - sg * r * 0.5, y: y + r * 2.1))
                 c.strokePath()
                 fallthrough
             default:                                   // dark rim, coloured iris, pupil, two catchlights
-                c.oval(x, y, r * 1.08, r * 1.22, 0x2A2438)
+                c.oval(x, y, r * 1.08, r * 1.22, Draw.rim)
                 c.oval(x, y - r * 0.1, r * 0.86, r * 0.98, Draw.iris)
                 c.oval(x, y, r * 0.52, r * 0.62, 0x1A1522)
                 c.oval(x + r * 0.34, y + r * 0.46, r * 0.4, r * 0.4, 0xFFFFFF)
                 c.oval(x - r * 0.36, y - r * 0.42, r * 0.2, r * 0.2, 0xFFFFFF, 0.9)
+            }
+        }
+    }
+
+    /// The mouth for each expression; `y` is the line of the resting smile.
+    static func mouth(_ c: CGContext, _ x: CGFloat, _ y: CGFloat, _ mode: Int, dark: UInt32 = 0x5A3A2E, tongue: Bool = false) {
+        c.setStrokeColor(rgb(dark)); c.setLineWidth(1.15); c.setLineCap(.round); c.setLineJoin(.round)
+        switch mode {
+        case 1: c.paint(roundRect(x - 2.6, y - 4.2, 5.2, 4.6, 2.3), 0xE8607A)
+        case 2: c.oval(x, y - 2.2, 1.5, 1.8, dark)
+        case 4:
+            c.addArc(center: CGPoint(x: x, y: y - 4.2), radius: 2.2, startAngle: 0.4, endAngle: .pi - 0.4, clockwise: false)
+            c.strokePath()
+        case 5:                                                // wide open laugh
+            let p = CGMutablePath()
+            p.move(to: CGPoint(x: x - 4.6, y: y + 0.2)); p.addLine(to: CGPoint(x: x + 4.6, y: y + 0.2))
+            p.addCurve(to: CGPoint(x: x - 4.6, y: y + 0.2), control1: CGPoint(x: x + 4.4, y: y - 8.2), control2: CGPoint(x: x - 4.4, y: y - 8.2))
+            c.paint(p, 0x8A2F45)
+            c.saveGState(); c.addPath(p); c.clip()
+            c.oval(x, y - 6.2, 3.2, 2.4, 0xFF8FA3)
+            c.restoreGState()
+        case 6:                                                // wobbly wail
+            c.oval(x, y - 3.4, 3, 3.4, 0x8A2F45)
+            c.oval(x, y - 5.4, 2, 1.3, 0xFF8FA3)
+        case 8:
+            c.move(to: CGPoint(x: x - 4, y: y - 2.6)); c.addLine(to: CGPoint(x: x - 2, y: y - 1.2))
+            c.addLine(to: CGPoint(x: x, y: y - 2.6)); c.addLine(to: CGPoint(x: x + 2, y: y - 1.2)); c.addLine(to: CGPoint(x: x + 4, y: y - 2.6))
+            c.strokePath()
+        default:
+            if tongue && mode != 3 { c.paint(roundRect(x - 1.8, y - 4.7, 3.6, 4.6, 1.8), 0xFF8FA3) }
+            for sgn in [-1.0, 1.0] as [CGFloat] {              // tiny "w" smile
+                c.addArc(center: CGPoint(x: x + sgn * 1.7, y: y), radius: 1.7, startAngle: .pi + 0.2,
+                         endAngle: 2 * .pi - 0.2, clockwise: false)
+                c.strokePath()
             }
         }
     }
@@ -296,10 +351,11 @@ enum Draw {
         if kind == "penguin" { penguin(c, phase: phase, eyes: eyes, hat: hat); return }
         var k = coat(kind)
         if let sc = scarf { k.scarf = sc }
+        if kind == "panda" { panda(c, phase: phase, eyes: eyes, hat: hat, scarf: k.scarf); return }
         Draw.iris = k.iris
         let dark: UInt32 = 0x5A3A2E
         let sit = phase == 2
-        c.oval(50, 5, 28, 4, 0x1B2050, 0.16)
+        if Draw.shadow { c.oval(50, 5, 28, 4, 0x1B2050, 0.16) }
         // tail
         switch k.tail {
         case 3: break                                              // no tail to speak of
@@ -433,23 +489,7 @@ enum Draw {
         Draw.eyes(c, [hx - 9.5, hx + 9.5], hy + 0.5, eyes, 3.7)
         c.oval(hx, hy - 5.5, 2.3, 1.6, dark)
         c.oval(hx - 0.7, hy - 5, 0.8, 0.5, 0xFFFFFF, 0.7)
-        if eyes == 1 {
-            c.paint(roundRect(hx - 2.6, hy - 11.5, 5.2, 4.6, 2.3), 0xE8607A)          // open, happy mouth
-        } else if eyes == 2 {
-            c.oval(hx, hy - 9.5, 1.5, 1.8, dark)                                       // little "o"
-        } else if eyes == 4 {
-            c.setStrokeColor(rgb(dark)); c.setLineWidth(1.2); c.setLineCap(.round)     // small frown
-            c.addArc(center: CGPoint(x: hx, y: hy - 11.5), radius: 2.2, startAngle: 0.4, endAngle: .pi - 0.4, clockwise: false)
-            c.strokePath()
-        } else {
-            if k.tongue && eyes != 3 { c.paint(roundRect(hx - 1.8, hy - 12, 3.6, 4.6, 1.8), 0xFF8FA3) }
-            c.setStrokeColor(rgb(dark)); c.setLineWidth(1.1); c.setLineCap(.round)
-            for sgn in [-1.0, 1.0] as [CGFloat] {                                      // tiny "w" smile
-                c.addArc(center: CGPoint(x: hx + sgn * 1.7, y: hy - 7.3), radius: 1.7, startAngle: .pi + 0.2,
-                         endAngle: 2 * .pi - 0.2, clockwise: false)
-                c.strokePath()
-            }
-        }
+        Draw.mouth(c, hx, hy - 7.3, eyes, dark: dark, tongue: k.tongue)
         if k.whiskers {
             c.setStrokeColor(rgb(0xFFFFFF, 0.85)); c.setLineWidth(0.8); c.setLineCap(.round)
             for sgn in [-1.0, 1.0] as [CGFloat] {
@@ -463,11 +503,76 @@ enum Draw {
         Draw.hat(c, hat, hx, hy + 14)
     }
 
+    /// Panda pet: a round bear that sits up and waddles on two feet.
+    static func panda(_ c: CGContext, phase: Int, eyes: Int = 0, hat: Int = 0, scarf: UInt32 = 0xE8607A) {
+        let sit = phase == 2, blk: UInt32 = 0x3A3646, blkS: UInt32 = 0x211F2B, fur: UInt32 = 0xFFFFFF, furS: UInt32 = 0xD3DBEA
+        if Draw.shadow { c.oval(50, 5, 26, 4, 0x1B2050, 0.16) }
+        c.saveGState()
+        c.translateBy(x: 50, y: 6); c.rotate(by: sit ? 0 : (phase == 0 ? -0.07 : 0.07))
+        if sit {                                                       // feet out in front, soles showing
+            for s in [-1.0, 1.0] as [CGFloat] {
+                c.shaded(ovalPath(s * 15, 5.5, 8.5, 7.2), blk, blkS)
+                c.oval(s * 15, 4.6, 4.2, 3.3, 0x7A748C)
+                for dx in [-3.6, 0, 3.6] as [CGFloat] { c.oval(s * 15 + dx, 9.6, 1.35, 1.25, 0x7A748C) }
+            }
+        } else {
+            c.shaded(ovalPath(-10.5, phase == 0 ? 2.5 : 5.5, 9.5, 6.5), blk, blkS)
+            c.shaded(ovalPath(10.5, phase == 0 ? 5.5 : 2.5, 9.5, 6.5), blk, blkS)
+        }
+        if !sit {
+            for s in [-1.0, 1.0] as [CGFloat] {                        // arms swing as it walks
+                c.saveGState()
+                c.translateBy(x: s * 19, y: 30); c.rotate(by: s * 0.3 + (phase == 0 ? 0.16 : -0.16))
+                c.shaded(ovalPath(0, -7, 6.5, 12), blk, blkS)
+                c.restoreGState()
+            }
+        }
+        let body = ovalPath(0, 22, 21.5, 20)
+        c.shaded(body, fur, furS)
+        c.saveGState(); c.addPath(body); c.clip()
+        c.oval(0, 42, 26, 10.5, blk)                                   // the dark band across the shoulders
+        c.restoreGState()
+        if sit {
+            for s in [-1.0, 1.0] as [CGFloat] {                        // paws resting on the tummy
+                c.saveGState()
+                c.translateBy(x: s * 15, y: 27); c.rotate(by: -s * 0.75)
+                c.shaded(ovalPath(0, -4, 6, 11), blk, blkS)
+                c.restoreGState()
+            }
+        }
+        c.paint(roundRect(-15, 34.5, 30, 6.5, 3.2), scarf)
+        c.paint(roundRect(6, 25.5, 7, 12, 3), mixHex(scarf, 0x8A5A00, 0.18))
+        let hy: CGFloat = 51
+        for s in [-1.0, 1.0] as [CGFloat] {
+            c.shaded(ovalPath(s * 17.5, hy + 14.5, 8.2, 8.2), blk, blkS)
+            c.oval(s * 17.5, hy + 14, 3.6, 3.6, 0x5E5870)
+        }
+        let head = ovalPath(0, hy, 24, 19.5)
+        c.shaded(head, fur, furS, dx: -0.06, dy: 0.06)
+        for s in [-1.0, 1.0] as [CGFloat] {                            // teardrop patches, tilted toward the nose
+            c.saveGState()
+            c.translateBy(x: s * 10, y: hy + 0.5); c.rotate(by: s * 0.5)
+            c.shaded(ovalPath(0, 0, 6.4, 8.4), blk, blkS)
+            c.restoreGState()
+        }
+        let keep = (Draw.ink, Draw.rim, Draw.iris)
+        Draw.ink = 0xFFFFFF; Draw.rim = 0x9A94B2; Draw.iris = 0x4A4560
+        Draw.eyes(c, [-9.4, 9.4], hy + 1.2, eyes, 3.2)
+        (Draw.ink, Draw.rim, Draw.iris) = keep
+        c.oval(0, hy - 6.6, 8.4, 6, 0xFFFFFF)                          // muzzle
+        c.paint(roundRect(-3.1, hy - 5.6, 6.2, 3.7, 1.8), 0x2A2733)
+        c.oval(-0.9, hy - 3, 0.9, 0.55, 0xFFFFFF, 0.7)
+        Draw.mouth(c, 0, hy - 8.4, eyes, dark: 0x2A2733)
+        c.oval(-17, hy - 6.5, 4, 2.6, 0xFF9DB0, 0.75); c.oval(17, hy - 6.5, 4, 2.6, 0xFF9DB0, 0.75)
+        Draw.hat(c, hat, 0, hy + 15.5)
+        c.restoreGState()
+    }
+
     /// Penguin pet: stands upright and waddles.
     static func penguin(_ c: CGContext, phase: Int, eyes: Int = 0, hat: Int = 0) {
         Draw.iris = 0x3A2A22
         let sit = phase == 2
-        c.oval(50, 5, 22, 4, 0x1B2050, 0.16)
+        if Draw.shadow { c.oval(50, 5, 22, 4, 0x1B2050, 0.16) }
         c.oval(sit ? 43 : (phase == 0 ? 41 : 44), sit ? 7 : (phase == 0 ? 6 : 8.5), 6.5, 3.4, 0xF7A84A)
         c.oval(sit ? 57 : (phase == 0 ? 57 : 60), sit ? 7 : (phase == 0 ? 8.5 : 6), 6.5, 3.4, 0xF7A84A)
         c.saveGState()
@@ -484,6 +589,7 @@ enum Draw {
         c.oval(0, 21, 15.5, 25, 0xFFF9F0)
         c.restoreGState()
         Draw.eyes(c, [-8, 8], 39, eyes, 3.5)
+        if eyes == 5 || eyes == 6 { c.oval(0, 28.6, 3.4, 2.8, 0x8A2F45) }   // beak open
         c.paint(gumdrop(0, 29.5, 8, 5.5), 0xF7A84A)                    // beak
         c.oval(-14.5, 32, 3.6, 2.4, 0xFF9DB0, 0.7); c.oval(14.5, 32, 3.6, 2.4, 0xFF9DB0, 0.7)
         Draw.hat(c, hat, 0, 57)
@@ -494,7 +600,7 @@ enum Draw {
     static func egg(_ c: CGContext, phase: Int, eyes: Int = 0, hat: Int = 0) {
         Draw.iris = 0x6B4A2E
         let sit = phase == 2
-        c.oval(50, 5, 20, 4, 0x1B2050, 0.16)
+        if Draw.shadow { c.oval(50, 5, 20, 4, 0x1B2050, 0.16) }
         if sit {
             c.oval(43, 7, 5, 3, 0xF7A84A); c.oval(57, 7, 5, 3, 0xF7A84A)
         } else {
@@ -516,15 +622,7 @@ enum Draw {
         c.oval(15, 12, 4, 3, 0xCDEBC0); c.oval(-14, 10, 3, 2.5, 0xFFE08A)
         c.restoreGState()
         Draw.eyes(c, [-8.5, 8.5], 28, eyes, 3.6)
-        if eyes == 1 { c.paint(roundRect(-2.4, 19, 4.8, 4.4, 2.2), 0xE8607A) } else if eyes == 2 { c.oval(0, 21.5, 1.5, 1.8, 0x3A3550) } else if eyes == 4 {
-            c.setStrokeColor(rgb(0x3A3550)); c.setLineWidth(1.3)
-            c.addArc(center: CGPoint(x: 0, y: 19.5), radius: 2.2, startAngle: 0.4, endAngle: .pi - 0.4, clockwise: false)
-            c.strokePath()
-        } else {
-            c.setStrokeColor(rgb(0x3A3550)); c.setLineWidth(1.3)
-            c.addArc(center: CGPoint(x: 0, y: 23.5), radius: 2.2, startAngle: .pi + 0.4, endAngle: 2 * .pi - 0.4, clockwise: false)
-            c.strokePath()
-        }
+        Draw.mouth(c, 0, 23.5, eyes, dark: 0x3A3550)
         c.oval(-15, 22, 3.8, 2.6, 0xFF9DB0, 0.7); c.oval(15, 22, 3.8, 2.6, 0xFF9DB0, 0.7)
         Draw.hat(c, hat, 0, 55)
         c.restoreGState()
@@ -592,23 +690,284 @@ enum Art {
         c.addPath(roundRect(0.6, 0, 2.8, 40, 1.4)); c.clip()
         c.drawLinearGradient(g, start: .zero, end: CGPoint(x: 0, y: 40), options: [])
     }
-    static let leaf = Sprite(16, 10) { c in
-        let p = CGMutablePath()
-        p.move(to: CGPoint(x: 1, y: 5))
-        p.addQuadCurve(to: CGPoint(x: 15, y: 5), control: CGPoint(x: 8, y: 13))
-        p.addQuadCurve(to: CGPoint(x: 1, y: 5), control: CGPoint(x: 8, y: -3))
-        c.paint(p, 0xFFFFFF)
-        c.setStrokeColor(rgb(0x000000, 0.22)); c.setLineWidth(0.7)
-        c.move(to: CGPoint(x: 1, y: 5)); c.addLine(to: CGPoint(x: 14, y: 5)); c.strokePath()
+    /// A soft flake with a faint blue underside, so it still reads against a white window.
+    static let snowDot = Sprite(8, 8) { c in
+        c.glow(4, 4, 4, 0xFFFFFF, 0.8)
+        c.oval(4, 3.6, 2.7, 2.7, 0x9FBFE8, 0.55)
+        c.oval(4, 4.2, 2.5, 2.5, 0xFFFFFF)
     }
-    static let petal = Sprite(10, 8) { c in
+    /// Three six-armed snow crystals.
+    static let flakes: [Sprite] = (0..<3).map { v in
+        Sprite(16, 16) { c in
+            c.translateBy(x: 8, y: 8)
+            for pass in 0..<2 {
+                c.setStrokeColor(pass == 0 ? rgb(0x7FA6DC, 0.6) : rgb(0xFFFFFF))
+                c.setLineWidth(pass == 0 ? 2.3 : 1.1); c.setLineCap(.round)
+                for i in 0..<6 {
+                    c.saveGState(); c.rotate(by: CGFloat(i) * .pi / 3)
+                    c.move(to: .zero); c.addLine(to: CGPoint(x: 0, y: 7))
+                    let b: CGFloat = v == 2 ? 2.3 : 1.7
+                    for y in (v == 0 ? [4.2] : (v == 1 ? [2.6, 4.9] : [5])) as [CGFloat] {
+                        c.move(to: CGPoint(x: 0, y: y)); c.addLine(to: CGPoint(x: b, y: y + b * 0.8))
+                        c.move(to: CGPoint(x: 0, y: y)); c.addLine(to: CGPoint(x: -b, y: y + b * 0.8))
+                    }
+                    c.strokePath(); c.restoreGState()
+                }
+            }
+            c.oval(0, 0, 1.3, 1.3, 0xFFFFFF)
+        }
+    }
+    /// Maple, beech and ginkgo leaves, drawn pale with veins and shading so a tint keeps the detail.
+    static let leaves: [Sprite] = (0..<3).map { v in
+        Sprite(22, 22) { c in
+            let p = CGMutablePath()
+            switch v {
+            case 0:
+                for i in 0...90 {
+                    let a = CGFloat(i) / 90 * 2 * .pi
+                    let r = 4.6 + 5.9 * pow(1 - abs(sin(2.5 * (a - .pi / 2))), 0.6)
+                    let q = CGPoint(x: 11 + cos(a) * r, y: 10.5 + sin(a) * r)
+                    if i == 0 { p.move(to: q) } else { p.addLine(to: q) }
+                }
+            case 1:
+                p.move(to: CGPoint(x: 11, y: 1.5))
+                p.addQuadCurve(to: CGPoint(x: 11, y: 20.5), control: CGPoint(x: 21.5, y: 9))
+                p.addQuadCurve(to: CGPoint(x: 11, y: 1.5), control: CGPoint(x: 0.5, y: 9))
+            default:
+                p.move(to: CGPoint(x: 11, y: 2)); p.addLine(to: CGPoint(x: 2, y: 13))
+                p.addQuadCurve(to: CGPoint(x: 11, y: 17), control: CGPoint(x: 4, y: 21.5))
+                p.addQuadCurve(to: CGPoint(x: 20, y: 13), control: CGPoint(x: 18, y: 21.5))
+            }
+            p.closeSubpath()
+            c.paint(p, 0xFFFFFF)
+            c.saveGState(); c.addPath(p); c.clip()
+            let g = CGGradient(colorsSpace: sRGB, colors: [rgb(0x000000, 0), rgb(0x000000, 0.36)] as CFArray, locations: [0.3, 1])!
+            c.drawLinearGradient(g, start: CGPoint(x: 4, y: 19), end: CGPoint(x: 19, y: 3), options: [.drawsAfterEndLocation])
+            c.setStrokeColor(rgb(0x000000, 0.32)); c.setLineWidth(0.7); c.setLineCap(.round)
+            c.move(to: CGPoint(x: 11, y: 2)); c.addLine(to: CGPoint(x: 11, y: v == 2 ? 16 : 19))
+            switch v {
+            case 0:
+                for k in [1, 2, 3, 4] {
+                    let a = .pi / 2 + CGFloat(k) * 2 * .pi / 5
+                    c.move(to: CGPoint(x: 11, y: 9)); c.addLine(to: CGPoint(x: 11 + cos(a) * 8, y: 10.5 + sin(a) * 8))
+                }
+            case 1:
+                for y in [5.5, 9.5, 13.5] as [CGFloat] {
+                    c.move(to: CGPoint(x: 11, y: y)); c.addLine(to: CGPoint(x: 15.5, y: y + 3.4))
+                    c.move(to: CGPoint(x: 11, y: y)); c.addLine(to: CGPoint(x: 6.5, y: y + 3.4))
+                }
+            default:
+                for x in [4.5, 7.5, 14.5, 17.5] as [CGFloat] { c.move(to: CGPoint(x: 11, y: 2)); c.addLine(to: CGPoint(x: x, y: 16.5)) }
+            }
+            c.strokePath()
+            c.restoreGState()
+            c.setStrokeColor(rgb(0x000000, 0.5)); c.setLineWidth(1.1)
+            c.move(to: CGPoint(x: 11, y: 2.4)); c.addLine(to: CGPoint(x: 11, y: 0.4)); c.strokePath()
+        }
+    }
+    static let leaf = leaves[1]
+    static let petal = Sprite(12, 10) { c in
         let p = CGMutablePath()
-        p.move(to: CGPoint(x: 0.5, y: 4))
-        p.addCurve(to: CGPoint(x: 9.5, y: 5.5), control1: CGPoint(x: 2, y: 9), control2: CGPoint(x: 8, y: 8.5))
-        p.addLine(to: CGPoint(x: 8.2, y: 4))
-        p.addLine(to: CGPoint(x: 9.5, y: 2.5))
-        p.addCurve(to: CGPoint(x: 0.5, y: 4), control1: CGPoint(x: 8, y: -0.5), control2: CGPoint(x: 2, y: -1))
+        p.move(to: CGPoint(x: 0.6, y: 5))
+        p.addCurve(to: CGPoint(x: 11.4, y: 7), control1: CGPoint(x: 2.5, y: 11), control2: CGPoint(x: 9.5, y: 10.5))
+        p.addLine(to: CGPoint(x: 9.6, y: 5)); p.addLine(to: CGPoint(x: 11.4, y: 3))
+        p.addCurve(to: CGPoint(x: 0.6, y: 5), control1: CGPoint(x: 9.5, y: -0.5), control2: CGPoint(x: 2.5, y: -1))
+        c.saveGState(); c.addPath(p); c.clip()
+        let g = CGGradient(colorsSpace: sRGB, colors: [rgb(0xFFFFFF), rgb(0xFFD3E2), rgb(0xFF9FC0)] as CFArray, locations: [0, 0.5, 1])!
+        c.drawLinearGradient(g, start: CGPoint(x: 0, y: 5), end: CGPoint(x: 12, y: 5), options: [])
+        c.setStrokeColor(rgb(0xF27FA8, 0.6)); c.setLineWidth(0.6)
+        c.move(to: CGPoint(x: 1.5, y: 5)); c.addLine(to: CGPoint(x: 8.5, y: 5)); c.strokePath()
+        c.restoreGState()
+    }
+    /// A whole cherry blossom, mixed in among the loose petals.
+    static let blossom = Sprite(18, 18) { c in
+        for i in 0..<5 {
+            c.saveGState(); c.translateBy(x: 9, y: 9); c.rotate(by: CGFloat(i) * 2 * .pi / 5)
+            c.shaded(ovalPath(0, 4.7, 3.1, 4.1), 0xFFD6E4, 0xFFA4C4)
+            c.setStrokeColor(rgb(0xF27FA8, 0.5)); c.setLineWidth(0.5)
+            c.move(to: CGPoint(x: 0, y: 2)); c.addLine(to: CGPoint(x: 0, y: 6)); c.strokePath()
+            c.restoreGState()
+        }
+        c.oval(9, 9, 2, 2, 0xFFE08A)
+        for i in 0..<5 { let a = CGFloat(i) * 2 * .pi / 5 + 0.6; c.oval(9 + cos(a) * 3, 9 + sin(a) * 3, 0.5, 0.5, 0xE85C8E) }
+    }
+    /// A raindrop: bright rounded head at the bottom, tail fading upward.
+    static let drop = Sprite(4, 28) { c in
+        let p = CGMutablePath()
+        p.addEllipse(in: CGRect(x: 0.3, y: 0.3, width: 3.4, height: 3.4))
+        p.move(to: CGPoint(x: 0.4, y: 2.2)); p.addLine(to: CGPoint(x: 2, y: 28)); p.addLine(to: CGPoint(x: 3.6, y: 2.2)); p.closeSubpath()
+        c.addPath(p); c.clip()
+        let g = CGGradient(colorsSpace: sRGB, colors: [rgb(0xFFFFFF, 1), rgb(0xFFFFFF, 0.55), rgb(0xFFFFFF, 0)] as CFArray,
+                           locations: [0, 0.25, 1])!
+        c.drawLinearGradient(g, start: .zero, end: CGPoint(x: 0, y: 28), options: [])
+    }
+    static let ring = Sprite(20, 8) { c in
+        c.setStrokeColor(rgb(0xFFFFFF, 0.9)); c.setLineWidth(1)
+        c.strokeEllipse(in: CGRect(x: 1, y: 1, width: 18, height: 6))
+    }
+    /// A four-point sparkle.
+    static let twinkle = Sprite(14, 14) { c in
+        c.glow(7, 7, 6, 0xFFFFFF, 0.55)
+        let p = CGMutablePath()
+        for i in 0..<8 {
+            let a = CGFloat(i) * .pi / 4, r: CGFloat = i % 2 == 0 ? 6.6 : 1.5
+            let q = CGPoint(x: 7 + cos(a) * r, y: 7 + sin(a) * r)
+            if i == 0 { p.move(to: q) } else { p.addLine(to: q) }
+        }
+        p.closeSubpath()
         c.paint(p, 0xFFFFFF)
+    }
+    /// A shooting star: sparkle head at the bottom, tapering tail.
+    static let meteor = Sprite(12, 110) { c in
+        c.saveGState()
+        let t = CGMutablePath()
+        t.move(to: CGPoint(x: 3.4, y: 7)); t.addLine(to: CGPoint(x: 6, y: 110)); t.addLine(to: CGPoint(x: 8.6, y: 7)); t.closeSubpath()
+        c.addPath(t); c.clip()
+        let g = CGGradient(colorsSpace: sRGB, colors: [rgb(0xFFFFFF, 0.95), rgb(0xCFE2FF, 0.5), rgb(0x9FC4FF, 0)] as CFArray,
+                           locations: [0, 0.35, 1])!
+        c.drawLinearGradient(g, start: CGPoint(x: 0, y: 7), end: CGPoint(x: 0, y: 110), options: [])
+        c.restoreGState()
+        c.glow(6, 7, 6, 0xFFFFFF, 0.9)
+        let p = CGMutablePath()
+        for i in 0..<8 {
+            let a = CGFloat(i) * .pi / 4, r: CGFloat = i % 2 == 0 ? 5.8 : 1.6
+            let q = CGPoint(x: 6 + cos(a) * r, y: 7 + sin(a) * r)
+            if i == 0 { p.move(to: q) } else { p.addLine(to: q) }
+        }
+        p.closeSubpath()
+        c.paint(p, 0xFFFFFF)
+    }
+    static let firefly = Sprite(24, 24) { c in
+        c.glow(12, 12, 12, 0xFFFFFF, 0.8)
+        c.glow(12, 12, 6, 0xFFFFFF, 0.9)
+        c.oval(12, 12, 2.6, 2.6, 0xFFFFFF)
+    }
+    static let shadow = Sprite(60, 10) { c in c.oval(30, 5, 28, 4, 0x1B2050, 0.2) }
+
+    // Things the pets hold, wear and ride.
+    static let laptop = Sprite(36, 30) { c in
+        c.glow(18, 25, 17, 0xBFE8FF, 0.4)
+        c.shaded(roundRect(4, 5, 28, 19, 3.5), 0x8FA6EA, 0x6680CC)
+        c.paint(heartPath(18, 14.5, 3.6), 0xFFD3E0)
+        c.shaded(roundRect(1, 1, 34, 5.5, 2.7), 0x6F86CF, 0x5068B0)
+    }
+    static let book = Sprite(32, 22) { c in
+        c.shaded(roundRect(1, 2, 14.5, 18, 2.5), 0x6FB7E9, 0x4F97CC)
+        c.shaded(roundRect(16.5, 2, 14.5, 18, 2.5), 0x6FB7E9, 0x4F97CC)
+        c.paint(roundRect(14.6, 1, 2.8, 20, 1.4), 0x3F7FB0)
+        c.paint(roundRect(2.5, 19, 27, 2, 1), 0xFFF6E4)
+        c.paint(starPath(23.5, 11, 3.6, 1.6), 0xFFD65A)
+    }
+    static let phones = Sprite(60, 46) { c in
+        c.setStrokeColor(rgb(0x4A4763)); c.setLineWidth(3.4); c.setLineCap(.round)
+        c.addArc(center: CGPoint(x: 30, y: 16), radius: 24.5, startAngle: 0.2, endAngle: .pi - 0.2, clockwise: false); c.strokePath()
+        for x in [1.0, 50.0] as [CGFloat] {
+            c.shaded(roundRect(x, 6, 9, 18, 4.5), 0xF4727E, 0xC9475F)
+            c.oval(x + 4.5, 15, 2, 4.5, 0xFFFFFF, 0.35)
+        }
+    }
+    static let umbrella = Sprite(56, 58) { c in
+        c.setStrokeColor(rgb(0x6B5544)); c.setLineWidth(2); c.setLineCap(.round)
+        c.move(to: CGPoint(x: 28, y: 34)); c.addLine(to: CGPoint(x: 28, y: 7))
+        c.addArc(center: CGPoint(x: 24.5, y: 7), radius: 3.5, startAngle: 0, endAngle: .pi, clockwise: true); c.strokePath()
+        let dome = CGMutablePath()
+        dome.move(to: CGPoint(x: 2, y: 32))
+        dome.addCurve(to: CGPoint(x: 54, y: 32), control1: CGPoint(x: 4, y: 64), control2: CGPoint(x: 52, y: 64))
+        for i in 0..<4 {
+            let x = 54 - CGFloat(i + 1) * 13
+            dome.addQuadCurve(to: CGPoint(x: x, y: 32), control: CGPoint(x: x + 6.5, y: 38))
+        }
+        dome.closeSubpath()
+        c.shaded(dome, 0xF4727E, 0xC9475F)
+        c.saveGState(); c.addPath(dome); c.clip()
+        c.oval(28, 44, 7, 22, 0xFFE9A8, 0.9); c.oval(6, 40, 5, 20, 0xFFE9A8, 0.75); c.oval(50, 40, 5, 20, 0xFFE9A8, 0.75)
+        c.restoreGState()
+        c.oval(28, 57, 1.6, 1.6, 0x6B5544)
+    }
+    static let rocket = Sprite(30, 62) { c in
+        for s in [-1.0, 1.0] as [CGFloat] {
+            let f = CGMutablePath()
+            f.move(to: CGPoint(x: 15 + s * 7, y: 24)); f.addLine(to: CGPoint(x: 15 + s * 14, y: 6)); f.addLine(to: CGPoint(x: 15 + s * 5, y: 12))
+            f.closeSubpath()
+            c.paint(f, 0xE8607A)
+        }
+        c.shaded(gumdrop(15, 9, 20, 52), 0xF6F8FC, 0xC3CCDD)
+        c.saveGState(); c.addPath(gumdrop(15, 9, 20, 52)); c.clip()
+        c.oval(15, 62, 12, 13, 0xE8607A)
+        c.restoreGState()
+        c.oval(15, 34, 5.4, 5.4, 0x4A5C92); c.oval(15, 34, 4, 4, 0x9FD4FF); c.oval(13.6, 35.4, 1.2, 1.2, 0xFFFFFF, 0.9)
+        c.paint(roundRect(9.5, 5, 11, 5, 2), 0x4A4763)
+    }
+    static let cloud = Sprite(84, 34) { c in
+        for (x, y, r) in [(20, 13, 12), (38, 18, 15), (58, 16, 13), (70, 11, 9), (44, 9, 14)] as [(CGFloat, CGFloat, CGFloat)] {
+            c.oval(x, y - 2, r, r * 0.86, 0xC9D8F0)
+        }
+        for (x, y, r) in [(20, 13, 12), (38, 18, 15), (58, 16, 13), (70, 11, 9), (44, 9, 14)] as [(CGFloat, CGFloat, CGFloat)] {
+            c.oval(x, y, r, r * 0.86, 0xFFFFFF)
+        }
+    }
+    static let bubble = Sprite(120, 120) { c in
+        c.oval(60, 60, 56, 56, 0xFFFFFF, 0.1)
+        c.setStrokeColor(rgb(0xDDF1FF, 0.85)); c.setLineWidth(1.8)
+        c.strokeEllipse(in: CGRect(x: 4, y: 4, width: 112, height: 112))
+        c.setStrokeColor(rgb(0xFFFFFF, 0.9)); c.setLineWidth(3); c.setLineCap(.round)
+        c.addArc(center: CGPoint(x: 60, y: 60), radius: 46, startAngle: 1.9, endAngle: 2.6, clockwise: false); c.strokePath()
+    }
+    static let wheel = Sprite(16, 16) { c in
+        c.oval(8, 8, 7.6, 7.6, 0x3A3550)
+        c.oval(8, 8, 3.8, 3.8, 0xE4E8F2)
+        c.setStrokeColor(rgb(0x3A3550)); c.setLineWidth(1.2)
+        c.move(to: CGPoint(x: 4.4, y: 8)); c.addLine(to: CGPoint(x: 11.6, y: 8))
+        c.move(to: CGPoint(x: 8, y: 4.4)); c.addLine(to: CGPoint(x: 8, y: 11.6)); c.strokePath()
+    }
+    private static var carCache: [UInt32: Sprite] = [:]
+    /// An open-top toy car, facing right.
+    static func car(_ hex: UInt32) -> Sprite {
+        if let s = carCache[hex] { return s }
+        let dk = mixHex(hex, 0x000000, 0.22)
+        let s = Sprite(90, 34) { c in
+            let glass = CGMutablePath()
+            glass.move(to: CGPoint(x: 60, y: 25)); glass.addQuadCurve(to: CGPoint(x: 73, y: 25), control: CGPoint(x: 72, y: 37))
+            glass.closeSubpath()
+            c.paint(glass, 0xCFEFFF, 0.8)
+            c.shaded(roundRect(3, 7, 84, 20, 10), hex, dk)
+            c.paint(roundRect(18, 16, 44, 3, 1.5), 0xFFFFFF, 0.75)
+            c.oval(83, 18, 3.2, 3.2, 0xFFF3B0); c.oval(6.5, 18, 2.4, 2.4, 0xFF6B6B)
+            c.paint(roundRect(1, 8, 6, 3.5, 1.7), 0xDDE2EE); c.paint(roundRect(83, 8, 6, 3.5, 1.7), 0xDDE2EE)
+        }
+        carCache[hex] = s
+        return s
+    }
+    static let wagon = Sprite(78, 30) { c in
+        let p = CGMutablePath()
+        p.move(to: CGPoint(x: 5, y: 26)); p.addLine(to: CGPoint(x: 73, y: 26)); p.addLine(to: CGPoint(x: 65, y: 5)); p.addLine(to: CGPoint(x: 13, y: 5))
+        p.closeSubpath()
+        c.shaded(p, 0xD49A5A, 0xA66B32)
+        c.saveGState(); c.addPath(p); c.clip()
+        c.setStrokeColor(rgb(0x8A5A3C, 0.6)); c.setLineWidth(1)
+        for x in stride(from: 16, to: 70, by: 11) { c.move(to: CGPoint(x: CGFloat(x), y: 4)); c.addLine(to: CGPoint(x: CGFloat(x), y: 27)) }
+        c.strokePath()
+        c.restoreGState()
+        c.shaded(roundRect(2, 23.5, 74, 5.5, 2.7), 0x9A6B4F, 0x7E543B)
+    }
+    static let board = Sprite(74, 10) { c in
+        c.shaded(roundRect(2, 3.5, 70, 5, 2.5), 0xF7C948, 0xD9A53C)
+        c.paint(roundRect(24, 5, 26, 2, 1), 0xF4727E)
+    }
+    static let sled = Sprite(84, 22) { c in
+        c.setStrokeColor(rgb(0xE8607A)); c.setLineWidth(2.6); c.setLineCap(.round)
+        c.move(to: CGPoint(x: 6, y: 3)); c.addLine(to: CGPoint(x: 66, y: 3))
+        c.addQuadCurve(to: CGPoint(x: 78, y: 15), control: CGPoint(x: 80, y: 3)); c.strokePath()
+        for x in [18.0, 54.0] as [CGFloat] { c.paint(roundRect(x, 3, 3, 9, 1.5), 0xC9475F) }
+        c.shaded(roundRect(8, 11, 60, 6, 3), 0xD49A5A, 0xA66B32)
+    }
+    static let butterfly = Sprite(20, 16) { c in
+        for s in [-1.0, 1.0] as [CGFloat] {
+            c.shaded(ovalPath(10 + s * 4.6, 10, 4.6, 5.2), 0xFFB7CE, 0xF27FA8)
+            c.shaded(ovalPath(10 + s * 3.6, 4.2, 3.4, 3.4), 0x9FD4FF, 0x6FB7E9)
+            c.oval(10 + s * 4.8, 10.5, 1.4, 1.6, 0xFFFFFF, 0.8)
+        }
+        c.paint(roundRect(9.1, 2, 1.8, 12, 0.9), 0x4A4763)
     }
     static let heart = Sprite(14, 14) { c in c.paint(heartPath(7, 7, 5.5), 0xFF7FA0) }
     static let bun = Sprite(72, 90, Draw.bun)
@@ -711,11 +1070,15 @@ enum Art {
     }
     static let hole = Sprite(40, 12) { c in c.oval(20, 6, 19, 5.5, 0x6B5544); c.oval(20, 5.2, 16, 4, 0x2A2233) }
 
-    /// Frames for a pet: 0 walk A, 1 walk B, 2 asleep, 3 blink, 4 happy, 5 surprised, 6 sitting, 7 sad.
+    /// Frames for a pet: 0 walk A, 1 walk B, 2 asleep, 3 blink, 4 happy, 5 surprised, 6 sitting, 7 sad,
+    /// 8 laughing, 9 crying, 10 heart eyes, 11 dizzy, 12 sitting and happy.
     static func pet(_ kind: String, hat: Int = 0, scarf: Int = 0) -> [Sprite] {
         let key = "\(kind)|\(hat)|\(scarf)"
         if let f = petCache[key] { return f }
-        let spec: [(Int, Int)] = [(0, 0), (1, 0), (2, 3), (0, 3), (0, 1), (0, 2), (2, 0), (0, 4)]
+        let spec: [(Int, Int)] = [(0, 0), (1, 0), (2, 3), (0, 3), (0, 1), (0, 2), (2, 0), (0, 4),
+                                  (0, 5), (0, 6), (0, 7), (0, 8), (2, 1)]
+        Draw.shadow = false
+        defer { Draw.shadow = true }
         let sc: UInt32? = scarf == 0 ? nil : UInt32(scarf)
         let f = spec.map { sp in Sprite(100, 96) { Draw.pet($0, kind, phase: sp.0, eyes: sp.1, hat: hat, scarf: sc) } }
         petCache[key] = f

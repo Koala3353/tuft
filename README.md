@@ -18,9 +18,9 @@ Snow piles up on your windows and slides off when you drag them. A fox, cat, bun
 
 ![Fox, cat, dog, bunny, panda, hamster, penguin and egg pets with their expressions, and the snow bun, tree, lantern and gift](preview/characters.png)
 
-**The built-in wallpapers**, a day and a night painting for each season:
+**The built-in wallpapers**, eight scenes with a picture for every time of day:
 
-![Eight painted scenes: winter, autumn, spring and summer, by day and by night](preview/wallpapers.jpg)
+![Eight scenes: snow, autumn, sky, village, rain, stars, fireflies and santa](preview/wallpapers.jpg)
 
 ## Install
 
@@ -47,22 +47,30 @@ Tuft needs no permissions. It never records your screen and never reads what you
 Everything is in the menu bar icon.
 
 ### Weather
-- **Six kinds:** snow, leaves, starfall, rain, sakura, fireflies.
+- **Six kinds:** snow, leaves, starfall, rain, sakura, fireflies. Snow falls as small crystals, rain leaves ripples where it lands, and starfall streaks like meteors.
 - **Snow piles** on window tops and the Dock, in uneven drifts, and falls off when a window moves. Set how deep under **Snow depth**.
 - **The pointer pushes things around:** it parts falling snow, scatters resting leaves, and fireflies gather when it rests.
 - **Match real weather:** type your city once and Tuft follows the actual conditions.
 
 ### Wallpapers
-- Eight painted scenes: a day and a night painting for each season, tinted for dawn, sunrise, morning, midday, golden hour, sunset, dusk and night.
-- The season follows the weather you pick. **Follow time of day** changes the tint as the day goes on.
+- Eight scenes (snow, autumn, sky, village, rain, stars, fireflies, santa), each with its own picture for dawn, sunrise, morning, midday, golden hour, sunset, dusk and night.
+- **Follow time of day** changes the picture as the day goes on. Choosing a weather by hand never changes the picture; **Wallpaper ▸ Scene ▸ Change with real weather** lets the scene follow **Match real weather**.
+- **Any weather on any picture:** pick a scene under **Wallpaper ▸ Scene**, then choose what falls under **Weather (what falls)**, for example sakura petals over the rain scene.
+- Small pictures are enlarged with a sharpening filter so they stay crisp on a big screen. Nothing is redrawn or generated.
 - **Restore my wallpaper** puts your own picture back.
 - **Use my own pictures:** opens a folder for your own images. Name them by season (`winter-night.jpg`) or as a full scene with one picture per time of day (`snow-dawn.jpg` … `snow-night.jpg`); full scenes show up under **Wallpaper ▸ Scene**.
 
 ### Pets
 - **Fox, cat, dog, bunny, panda, hamster, penguin or egg**, plus an optional second pet. Each can have a hat, a scarf or collar colour, and a name.
 - **Where they live:** both sides of the Dock, a bottom corner, on the Dock, or on the menu bar. With two pets, they spend about half the time together and half on opposite sides.
-- **Menu bar trips:** now and then a pet pops up to the menu bar by magic or balloon, strolls along it, and comes back down.
-- **They react to you:** they sit and sway beside you while you type, check in with a little speech bubble when you have worked a long stretch, startle at nearby clicks, watch the pointer, nap when you're away and greet you when you come back. Rest the pointer on one to pet it.
+- **Menu bar trips:** now and then a pet heads up to the menu bar and back by magic, balloon, umbrella, rocket, a big leap, a little cloud or a bubble. Turn this off with **Pets visit the menu bar**.
+- **Menu bar play:** up there they stroll, sprint, play with the icons on the right side of the bar (bounce on one, leapfrog over it, hide behind it, hang under it, polish it), and ride tiny cars, wagons, skateboards and sleds while the other one runs after them.
+- **Window perching:** they climb onto the top edge of a window and sit there for a while. Turn this off with **Pets climb onto windows**.
+- **Pick them up:** click a pet over bare desktop, or Option-click one anywhere, to lift it by the scruff. It swings as you move, and lands on a window, the Dock or the ground when you let go. Let go while moving to throw it; drop it on the menu bar to leave it there.
+- **Music:** when something is playing sound, they put on headphones and dance. Turn this off with **Pets dance when music plays**.
+- **Typing along:** while you type, one opens a little laptop or a book beside you.
+- **Butterflies:** now and then one flutters by and they chase it.
+- **They react to you:** they laugh, cry, fall in love and get dizzy. They check in with a little speech bubble when you have worked a long stretch, startle at nearby clicks, watch the pointer, nap when you're away and greet you when you come back. Rest the pointer on one to pet it.
 - **Toys:** a ball, yarn, a leaf pile and a burrow on one side of the Dock; a little house, a food bowl and a bone on the other. The burrow and the house are a shortcut between the two sides.
 - **Play with them:** pick up the ball, yarn or bone and drag it around and the pets run after it and jump for it. Let go while moving to throw it. On their own they bat the ball and yarn about and carry the bone off for a chew.
 - **Mood:** petting and play make them happier. Ignored for a long time, they mope.
@@ -79,13 +87,15 @@ Everything is in the menu bar icon.
 - **Ambient sound** (off by default): soft rain, wind or night crickets.
 - **Open at login.**
 
-It draws on the graphics chip at 30 frames a second, halves the weather on battery, and stops under full-screen apps.
+It draws on the graphics chip at 30 frames a second and stops under full-screen apps. On battery it drops to 20 frames a second, halves the weather, checks window positions less often, and goes to sleep after you have been away for three minutes.
 
 ## Privacy
 
 - Tuft works offline unless you turn on **Match real weather**. Then it sends the city name you typed, and that city's coordinates, to [Open-Meteo](https://open-meteo.com). Nothing else leaves your Mac.
 - Typing and click reactions use only the time since the last key press or click. Tuft cannot see which keys you press.
 - Call detection asks macOS whether the microphone or a camera is in use. Tuft never opens either.
+- Music detection asks macOS whether any app is sending sound to the speakers. Tuft never listens to the sound and does not know what is playing.
+- Menu bar play uses only the position and size of the icons in the menu bar. Tuft does not read their names or what they show.
 
 ## Known limits
 
@@ -120,4 +130,4 @@ The source is a Swift package using AppKit and SpriteKit:
 
 ## Credits
 
-The pets, toys and decorations are drawn in code. The wallpaper paintings were generated with Canva's AI image tool for this project.
+The pets, toys and decorations are drawn in code. The wallpaper art is from [koiart.app](https://koiart.app/), used with the artist's permission.

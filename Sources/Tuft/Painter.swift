@@ -1,4 +1,5 @@
 import AppKit
+import CoreImage
 
 enum Season: String { case winter, autumn, spring, summer }
 
@@ -276,22 +277,43 @@ enum Wallpapers {
 
     /// One of your own pictures for an exact scene and time of day, named like "snow-night.jpg".
     static func themed(_ theme: String, _ time: DayTime) -> URL? {
-        theme.isEmpty ? nil : custom("\(theme)-\(timeKeys[time.rawValue])")
+        if theme.isEmpty { return nil }
+        let name = "\(theme)-\(timeKeys[time.rawValue])"
+        return custom(name) ?? Bundle.main.url(forResource: name, withExtension: "jpg", subdirectory: "wallpapers")
     }
 
     /// Scene names found in your pictures folder (anything that has a "-night" picture).
     static func themes() -> [String] {
-        let files = (try? FileManager.default.contentsOfDirectory(atPath: customDir.path)) ?? []
+        var files = (try? FileManager.default.contentsOfDirectory(atPath: customDir.path)) ?? []
+        if let built = Bundle.main.resourceURL?.appendingPathComponent("wallpapers").path {
+            files += (try? FileManager.default.contentsOfDirectory(atPath: built)) ?? []
+        }
         let seasons: Set<String> = ["winter", "autumn", "spring", "summer"]
         var found = Set<String>()
         for f in files {
             let base = (f as NSString).deletingPathExtension
             if base.hasSuffix("-night") {
                 let name = String(base.dropLast(6))
-                if !(seasons.contains(name) && custom("\(name)-dawn") == nil) { found.insert(name) }
+                if !(seasons.contains(name) && themed(name, .dawn) == nil) { found.insert(name) }
             }
         }
         return found.sorted()
+    }
+
+    /// A small picture stretched over a big screen goes soft. Enlarge it with a Lanczos filter and put a little edge
+    /// contrast back, which keeps painted lines crisp without inventing anything that is not in the picture.
+    static func enlarged(_ img: CGImage, by k: CGFloat) -> CGImage {
+        guard k > 1.15, let scale = CIFilter(name: "CILanczosScaleTransform"), let sharpen = CIFilter(name: "CIUnsharpMask") else { return img }
+        scale.setValue(CIImage(cgImage: img), forKey: kCIInputImageKey)
+        scale.setValue(k, forKey: kCIInputScaleKey)
+        scale.setValue(1.0, forKey: kCIInputAspectRatioKey)
+        guard let big = scale.outputImage else { return img }
+        sharpen.setValue(big, forKey: kCIInputImageKey)
+        sharpen.setValue(min(4, 0.9 * k), forKey: kCIInputRadiusKey)
+        sharpen.setValue(0.5, forKey: kCIInputIntensityKey)
+        let out = sharpen.outputImage ?? big
+        let rect = CGRect(x: 0, y: 0, width: (CGFloat(img.width) * k).rounded(.down), height: (CGFloat(img.height) * k).rounded(.down))
+        return CIContext().createCGImage(out, from: rect) ?? img
     }
 
     static func render(width: Int, height: Int, time: DayTime, season: Season, theme: String = "") -> CGImage {
@@ -302,7 +324,7 @@ enum Wallpapers {
                 c.interpolationQuality = .high
                 let k = max(w / CGFloat(img.width), h / CGFloat(img.height))
                 let dw = CGFloat(img.width) * k, dh = CGFloat(img.height) * k
-                c.draw(img, in: CGRect(x: (w - dw) / 2, y: (h - dh) / 2, width: dw, height: dh))
+                c.draw(enlarged(img, by: k), in: CGRect(x: (w - dw) / 2, y: (h - dh) / 2, width: dw, height: dh))
             }
         }
         let night = time == .dusk || time == .night
@@ -317,7 +339,7 @@ enum Wallpapers {
             c.interpolationQuality = .high
             let k = max(w / CGFloat(base.width), h / CGFloat(base.height))
             let dw = CGFloat(base.width) * k, dh = CGFloat(base.height) * k
-            c.draw(base, in: CGRect(x: (w - dw) / 2, y: (h - dh) / 2, width: dw, height: dh))
+            c.draw(enlarged(base, by: k), in: CGRect(x: (w - dw) / 2, y: (h - dh) / 2, width: dw, height: dh))
             func wash(_ mode: CGBlendMode, _ hex: UInt32, _ a: CGFloat) {
                 c.setBlendMode(mode); c.setFillColor(rgb(hex, a)); c.fill(CGRect(x: 0, y: 0, width: w, height: h))
             }
@@ -355,7 +377,7 @@ enum Wallpapers {
             }
             var pw = screen.frame.width * screen.backingScaleFactor, ph = screen.frame.height * screen.backingScaleFactor
             if pw > 3840 { ph *= 3840 / pw; pw = 3840 }
-            let url = dir.appendingPathComponent("tuft-\(season.rawValue)-\(time.rawValue)-\(Int(pw))x\(Int(ph))-v2\(stamp).png")
+            let url = dir.appendingPathComponent("tuft-\(season.rawValue)-\(time.rawValue)-\(Int(pw))x\(Int(ph))-v3\(stamp).png")
             jobs.append((screen, url, Int(pw), Int(ph)))
         }
         d.set(orig, forKey: "origWallpapers")
