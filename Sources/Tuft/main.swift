@@ -13,6 +13,14 @@ if let path = argValue("--icon") {
     exit(0)
 }
 
+if CommandLine.arguments.contains("--check-update") {            // prints what "Check for updates…" would find
+    Updates.latest { tag in
+        print("current \(Updates.current) latest \(tag ?? "unreachable") newer \(tag.map { Updates.newer($0, than: Updates.current) } ?? false)")
+        print(Updates.newer("v2.0.1", than: "2.0.0"), Updates.newer("2.0.0", than: "2.0.0"), Updates.newer("1.9.9", than: "2.0"), Updates.newer("2.1", than: "2.0.9"))
+        exit(0)
+    }
+    RunLoop.main.run()
+}
 if let dir = argValue("--preview") {
     let out = URL(fileURLWithPath: dir, isDirectory: true)
     for t in DayTime.allCases {

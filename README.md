@@ -1,8 +1,8 @@
 # Tuft
 
-A small menu bar app for macOS that puts weather, painted wallpapers and a pet on your desktop.
+A small menu bar app for macOS that puts weather, scene wallpapers and a pet on your desktop.
 
-Snow piles up on your windows and slides off when you drag them. A fox, cat, bunny, panda or one of four other pets lives beside the Dock, reacts to what you do, and stays out of the way while you work.
+Snow piles up on your windows and slides off when you drag them. A fox, cat, bunny, panda or one of four other pets lives beside the Dock, reacts to what you do, and stays out of the way while you work. You can pick it up and throw it, and it climbs onto your windows, plays with the icons in your menu bar and dances when music is on.
 
 ![Snow falling on a night scene, piling on a window and the Dock, with a fox and a cat playing beside the Dock](preview/demo-snow.gif)
 
@@ -14,7 +14,7 @@ Snow piles up on your windows and slides off when you drag them. A fox, cat, bun
 |---|---|
 | ![Leaves drifting over an autumn lake scene with a fox and a dog](preview/demo-autumn.gif) | ![Cherry petals over a spring scene with a fox and an egg pet](preview/demo-spring.gif) |
 
-**The eight pets**, each shown normal, happy (with a hat), surprised, sad and asleep, plus the decorations:
+**The eight pets**, each shown normal, happy (with a hat), laughing, in love, surprised, sad, crying, dizzy and asleep, plus the decorations:
 
 ![Fox, cat, dog, bunny, panda, hamster, penguin and egg pets with their expressions, and the snow bun, tree, lantern and gift](preview/characters.png)
 
@@ -39,6 +39,17 @@ xattr -dr com.apple.quarantine /Applications/Tuft.app
 ```
 
 **Requirements:** macOS 14 or later, Apple silicon (M1 or newer).
+
+### Updating
+
+Choose **Check for updates…** in Tuft's menu to see whether there is a newer version. To update:
+
+1. Download the new `Tuft.zip` from the [latest release](../../releases/latest) and unzip it.
+2. Quit Tuft from its menu bar icon.
+3. Drag the new `Tuft.app` into **Applications** and choose **Replace**.
+4. Open it. macOS may block it again; repeat step 4 above. If you use **Open at login**, turn it on again.
+
+Your pets, settings and your own pictures are kept.
 
 Tuft needs no permissions. It never records your screen and never reads what you type.
 
@@ -91,7 +102,7 @@ It draws on the graphics chip at 30 frames a second and stops under full-screen 
 
 ## Privacy
 
-- Tuft works offline unless you turn on **Match real weather**. Then it sends the city name you typed, and that city's coordinates, to [Open-Meteo](https://open-meteo.com). Nothing else leaves your Mac.
+- Tuft works offline unless you turn on **Match real weather** or choose **Check for updates…**. Real weather sends the city name you typed, and that city's coordinates, to [Open-Meteo](https://open-meteo.com). Checking for updates asks GitHub for the newest version number, only when you click it. Nothing else leaves your Mac.
 - Typing and click reactions use only the time since the last key press or click. Tuft cannot see which keys you press.
 - Call detection asks macOS whether the microphone or a camera is in use. Tuft never opens either.
 - Music detection asks macOS whether any app is sending sound to the speakers. Tuft never listens to the sound and does not know what is playing.

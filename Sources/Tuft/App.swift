@@ -105,6 +105,34 @@ enum BarWatch {
     }
 }
 
+/// Asks GitHub for the newest release, and only when you choose "Check for updates…". Nothing about you is sent.
+enum Updates {
+    static let page = URL(string: "https://github.com/Koala3353/tuft/releases/latest")!
+    static var current: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0" }
+
+    /// True when version `a` is newer than `b` ("2.0.1" against "2.0.0"; a leading "v" is ignored).
+    static func newer(_ a: String, than b: String) -> Bool {
+        func parts(_ v: String) -> [Int] { v.drop { !$0.isNumber }.split(separator: ".").map { Int($0) ?? 0 } }
+        let x = parts(a), y = parts(b)
+        for i in 0..<max(x.count, y.count) {
+            let l = i < x.count ? x[i] : 0, r = i < y.count ? y[i] : 0
+            if l != r { return l > r }
+        }
+        return false
+    }
+
+    /// The latest release's version, or nil when GitHub could not be reached.
+    static func latest(_ done: @escaping (String?) -> Void) {
+        var req = URLRequest(url: URL(string: "https://api.github.com/repos/Koala3353/tuft/releases/latest")!)
+        req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        req.timeoutInterval = 10
+        URLSession.shared.dataTask(with: req) { data, _, _ in
+            let tag = (data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any])?["tag_name"] as? String
+            DispatchQueue.main.async { done(tag) }
+        }.resume()
+    }
+}
+
 /// Current conditions from Open-Meteo (free, no account). Only the city name and its coordinates are sent.
 enum RealWeather {
     private static func json(_ url: String, _ done: @escaping ([String: Any]?) -> Void) {
@@ -660,6 +688,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 else { try SMAppService.mainApp.register() }
             } catch { NSSound.beep() }
             rebuildMenu()
+        })
+
+        menu.addItem(ActionItem("Check for updates…") {
+            Updates.latest { tag in
+                let alert = NSAlert()
+                if let tag, Updates.newer(tag, than: Updates.current) {
+                    alert.messageText = "Tuft \(tag.drop { !$0.isNumber }) is available"
+                    alert.informativeText = "You have \(Updates.current). Download the new Tuft.zip, quit Tuft, and replace Tuft.app in Applications. Your pets and settings are kept."
+                    alert.addButton(withTitle: "Open download page")
+                    alert.addButton(withTitle: "Later")
+                } else if tag != nil {
+                    alert.messageText = "Tuft is up to date"
+                    alert.informativeText = "You have the newest version, \(Updates.current)."
+                } else {
+                    alert.messageText = "Could not check for updates"
+                    alert.informativeText = "GitHub could not be reached. Check your connection and try again."
+                }
+                NSApp.activate(ignoringOtherApps: true)
+                if alert.runModal() == .alertFirstButtonReturn, alert.buttons.count == 2 { NSWorkspace.shared.open(Updates.page) }
+            }
         })
 
         menu.addItem(.separator())
