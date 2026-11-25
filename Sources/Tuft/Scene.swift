@@ -179,12 +179,19 @@ struct Win {
 }
 
 enum WindowTracker {
+    /// Menu bar status items seen in the last poll (global, top-left origin). A full-screen space has none.
+    static var statusItems: [CGRect] = []
+
     static func poll() -> [Win] {
         let me = Int(getpid())
         guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
                 as? [[String: Any]] else { return [] }
         var out: [Win] = []
+        statusItems = []
         for w in list {
+            if (w[kCGWindowLayer as String] as? Int) == 25, (w[kCGWindowOwnerPID as String] as? Int) != me,
+               let b = w[kCGWindowBounds as String] as? [String: Any], let r = CGRect(dictionaryRepresentation: b as CFDictionary),
+               r.width < 320, r.height < 60 { statusItems.append(r) }
             guard (w[kCGWindowLayer as String] as? Int) == 0,
                   (w[kCGWindowOwnerPID as String] as? Int) != me,
                   let b = w[kCGWindowBounds as String] as? [String: Any],
@@ -295,12 +302,30 @@ final class WeatherScene: SKScene {
         barH = top > 10 ? top : 24
         notch = screen.safeAreaInsets.top > 0
         let dockH = screen.visibleFrame.minY - screen.frame.minY
-        if dockH > 12 {
-            let dd = UserDefaults(suiteName: "com.apple.dock")
-            let n = (dd?.array(forKey: "persistent-apps")?.count ?? 8) + (dd?.array(forKey: "persistent-others")?.count ?? 1) + 3
-            let width = min(size.width - 40, CGFloat(n) * (dockH - 14) + 30)
-            dock = CGRect(x: (size.width - width) / 2, y: 0, width: width, height: dockH - 5)
-        }
+        self.dockH = dockH
+        refreshDock()
+    }
+
+    private var dockH: CGFloat = 0
+
+    /// Works out how wide the Dock is from what is in it right now: Finder, the kept apps, any other apps that are
+    /// open, the folders and the Trash, plus the dividers. Called every second or so, since opening an app widens it.
+    func refreshDock() {
+        guard dockH > 12, !Settings.shared.demo else { return }
+        let dd = UserDefaults(suiteName: "com.apple.dock")
+        let kept = dd?.array(forKey: "persistent-apps") ?? []
+        let keptIDs = Set(kept.compactMap { (($0 as? [String: Any])?["tile-data"] as? [String: Any])?["bundle-identifier"] as? String })
+        let open = NSWorkspace.shared.runningApplications.filter {
+            $0.activationPolicy == .regular && $0.bundleIdentifier != "com.apple.finder" && !keptIDs.contains($0.bundleIdentifier ?? "")
+        }.count
+        let recents = (dd?.object(forKey: "show-recents") as? Bool ?? true) ? min(3, dd?.array(forKey: "recent-apps")?.count ?? 0) : 0
+        let extra = max(open, recents), folders = dd?.array(forKey: "persistent-others")?.count ?? 1
+        let tiles = CGFloat(1 + kept.count + extra + folders + 1), dividers: CGFloat = extra > 0 ? 2 : 1
+        let pitch = (dockH - 12) * 0.875
+        let width = min(size.width - 40, pitch * (tiles + 0.475 * dividers + 0.2))
+        if let d = dock, abs(d.width - width) < 3 { return }
+        dock = CGRect(x: (size.width - width) / 2, y: 0, width: width, height: dockH - 5)
+        piles[-2] = nil; pilesDirty = true
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -340,11 +365,12 @@ final class WeatherScene: SKScene {
                                        width: w.rect.width, height: w.rect.height)))
         }
         focus = .null
-        covered = false
-        if let f = rects.first(where: { $0.1.intersects(CGRect(origin: .zero, size: size)) })?.1 {
-            focus = f
-            covered = f.width >= size.width - 1 && f.height >= size.height - 1
-        }
+        if let f = rects.first(where: { $0.1.intersects(CGRect(origin: .zero, size: size)) })?.1 { focus = f }
+        // A full-screen window fills the screen, or everything below the notch, and its space has no status items.
+        // Once covered, stay covered while that window is there, so the menu bar sliding down does not bring Tuft back.
+        let filled = rects.contains { $0.1.minX <= 1 && $0.1.width >= size.width - 1 && $0.1.minY <= 1 && $0.1.height >= size.height - barH - 2 }
+        let hasBar = WindowTracker.statusItems.contains { $0.midX > screenFrame.minX && $0.midX < screenFrame.maxX }
+        covered = filled && (covered || !hasBar)
         var next: [Surface] = []
         var moved = Set<Int>(), seen = Set<Int>()
         for (i, (id, r)) in rects.enumerated() {

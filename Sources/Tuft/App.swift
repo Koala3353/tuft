@@ -313,6 +313,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if s.music, !call, SoundWatch.othersPlaying() { soundOn += 1; soundOff = 0 } else { soundOff += 1; soundOn = 0 }
             if soundOn >= 2 { s.playing = true } else if soundOff >= 2 { s.playing = false }
             refreshBarItems()
+            scenes.forEach { $0.refreshDock() }
         }
         // On battery, stop drawing altogether once you have been away for three minutes; any input brings it back.
         let away = [CGEventType.keyDown, .leftMouseDown, .mouseMoved, .scrollWheel]

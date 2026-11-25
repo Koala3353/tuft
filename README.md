@@ -110,7 +110,8 @@ It draws on the graphics chip at 30 frames a second and stops under full-screen 
 
 ## Known limits
 
-- The Dock's width is estimated, so snow and pets can sit slightly off its real edges.
+- The Dock's width is worked out from the icons in it, so snow and pets can sit a few points off its real edges, and a magnified Dock is not followed.
+- If you keep the menu bar always hidden, a window that fills the whole screen is treated as full screen and Tuft hides.
 - Snow does not pile on maximised windows, because their top edge is under the menu bar.
 - Sharing your screen with the microphone and camera both off is not detected.
 - On the menu bar, pets may overlap menu titles or status icons.
