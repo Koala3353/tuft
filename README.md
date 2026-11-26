@@ -82,7 +82,7 @@ Everything is in the menu bar icon.
 - **Typing along:** while you type, one opens a little laptop or a book beside you.
 - **Butterflies:** now and then one flutters by and they chase it.
 - **They react to you:** they laugh, cry, fall in love and get dizzy. They check in with a little speech bubble when you have worked a long stretch, startle at nearby clicks, watch the pointer, nap when you're away and greet you when you come back. Rest the pointer on one to pet it.
-- **Toys:** a ball, yarn, a leaf pile and a burrow on one side of the Dock; a little house, a food bowl and a bone on the other. The burrow and the house are a shortcut between the two sides.
+- **Toys:** a ball, yarn, a leaf pile and a burrow on one side of the Dock; a little house, a food bowl and a bone on the other. The burrow and the house are a shortcut between the two sides. They all move along when the Dock gets wider or narrower.
 - **Play with them:** pick up the ball, yarn or bone and drag it around and the pets run after it and jump for it. Let go while moving to throw it. On their own they bat the ball and yarn about and carry the bone off for a chew.
 - **Mood:** petting and play make them happier. Ignored for a long time, they mope.
 

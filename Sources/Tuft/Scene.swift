@@ -269,6 +269,8 @@ final class WeatherScene: SKScene {
     var house: SKSpriteNode?, bowl: SKSpriteNode?, snowball: SKSpriteNode?
     var sbV: CGFloat = 0, sbR: CGFloat = 8
     var propsKey = "", playT: CGFloat = 12
+    var fixedProps: [(node: SKSpriteNode, side: Int, fx: CGFloat, dy: CGFloat)] = []   // where each prop sits in its zone
+    var propZones: (ClosedRange<CGFloat>, ClosedRange<CGFloat>) = (0...1, 0...1)
     var togetherT: CGFloat = 20, wantTogether = false, crossT: CGFloat = 0
     var workT: CGFloat = 0, workStage = 0      // how long you have been working without a real break
     var barH: CGFloat = 24, notch = false
@@ -866,7 +868,7 @@ final class WeatherScene: SKScene {
         let p = event.location(in: self)
         if decorAt(p) == nil, let t = toyAt(p) {                   // pick up a toy
             if let c = t.carrier { face(c, 5, 0.6) }
-            held = t; t.carrier = nil; t.v = .zero
+            held = t; t.carrier = nil; t.v = .zero; t.node.removeAction(forKey: "slide")
             return
         }
         if decorAt(p) == nil, let a = petAt(p), canGrab(p) { grab(a); return }
@@ -1107,37 +1109,63 @@ final class WeatherScene: SKScene {
     func syncProps() {
         let want = Settings.shared.toys && !onBar && !actors.isEmpty
         let twoSided = spot == "sides" && sideZones() != nil
-        let rz = petZone(1)
-        let key = want ? "\(spot)|\(twoSided)|\(Int(rz.lowerBound))" : ""
-        guard key != propsKey else { return }
-        propsKey = key
+        let lz = petZone(0), rz = petZone(1)
+        let key = want ? "\(spot)|\(twoSided)" : ""
+        if key == propsKey {                       // same layout: if the Dock grew or shrank, slide everything along
+            if want, propZones != (lz, rz) { slideProps(from: propZones, to: (lz, rz)); propZones = (lz, rz) }
+            return
+        }
+        propsKey = key; propZones = (lz, rz); fixedProps = []
         [pile, hole, house, bowl].forEach { $0?.removeFromParent() }
         toys.forEach { $0.node.removeFromParent() }
         toys = []; held = nil; threadPts = []; thread.path = nil
         pile = nil; hole = nil; house = nil; bowl = nil
         guard want else { return }
-        func add(_ sp: Sprite, _ zone: ClosedRange<CGFloat>, _ fx: CGFloat, _ dy: CGFloat, _ z: CGFloat) -> SKSpriteNode {
-            let n = SKSpriteNode(texture: sp.tex, size: sp.size)
+        func add(_ sp: Sprite, _ side: Int, _ fx: CGFloat, _ dy: CGFloat, _ z: CGFloat, fixed: Bool = true) -> SKSpriteNode {
+            let n = SKSpriteNode(texture: sp.tex, size: sp.size), zone = side == 0 ? lz : rz
+            if fixed { fixedProps.append((n, side, fx, dy)) }
             let x = zone.lowerBound + (zone.upperBound - zone.lowerBound) * fx
             n.position = CGPoint(x: x, y: groundY(x) + dy)
             n.zPosition = z
             addChild(n)
             return n
         }
-        if spot != "dock" { hole = add(Art.hole, rz, 0.12, 13, 19) }
-        pile = add(Art.pile, rz, 0.52, 15, 23)
-        func toy(_ kind: Int, _ sp: Sprite, _ zone: ClosedRange<CGFloat>, _ fx: CGFloat) {
-            toys.append(Toy(node: add(sp, zone, fx, kind == 2 ? 7 : 12, 23), kind: kind))
+        if spot != "dock" { hole = add(Art.hole, 1, 0.12, 13, 19) }
+        pile = add(Art.pile, 1, 0.52, 15, 23)
+        func toy(_ kind: Int, _ sp: Sprite, _ side: Int, _ fx: CGFloat) {
+            toys.append(Toy(node: add(sp, side, fx, kind == 2 ? 7 : 12, 23, fixed: false), kind: kind))
         }
-        toy(0, Art.ball, rz, 0.88)
-        toy(1, Art.yarn, rz, 0.68)
+        toy(0, Art.ball, 1, 0.88)
+        toy(1, Art.yarn, 1, 0.68)
         if twoSided {
-            let lz = petZone(0)
-            house = add(Art.house, lz, 0.82, 26, 19)
-            bowl = add(Art.bowl, lz, 0.35, 10, 23)
-            toy(2, Art.bone, lz, 0.58)
+            house = add(Art.house, 0, 0.82, 26, 19)
+            bowl = add(Art.bowl, 0, 0.35, 10, 23)
+            toy(2, Art.bone, 0, 0.58)
         } else {
-            toy(2, Art.bone, rz, 0.3)
+            toy(2, Art.bone, 1, 0.3)
+        }
+    }
+
+    /// The Dock changed width, so the strips beside it moved. The burrow, leaf pile, house and bowl glide to the same
+    /// place in the new strip; loose toys keep their place along it. A toy in your hand or a pet's mouth is left alone.
+    func slideProps(from old: (ClosedRange<CGFloat>, ClosedRange<CGFloat>), to new: (ClosedRange<CGFloat>, ClosedRange<CGFloat>)) {
+        func glide(_ n: SKSpriteNode, _ p: CGPoint) {
+            let m = SKAction.move(to: p, duration: 0.6)
+            m.timingMode = .easeInEaseOut
+            n.run(m, withKey: "slide")
+        }
+        for f in fixedProps {
+            let z = f.side == 0 ? new.0 : new.1
+            let x = z.lowerBound + (z.upperBound - z.lowerBound) * f.fx
+            glide(f.node, CGPoint(x: x, y: groundY(x) + f.dy))
+        }
+        let two = spot == "sides" && sideZones() != nil
+        for t in toys where t.carrier == nil && held !== t {
+            let p = t.node.position, s = two && p.x < size.width / 2 ? 0 : 1
+            let o = s == 0 ? old.0 : old.1, z = s == 0 ? new.0 : new.1
+            let f = max(0, min(1, (p.x - o.lowerBound) / max(1, o.upperBound - o.lowerBound)))
+            let x = z.lowerBound + (z.upperBound - z.lowerBound) * f
+            if t.v == .zero { glide(t.node, CGPoint(x: x, y: groundY(x) + (t.kind == 2 ? 7 : 12))) } else { t.node.position.x = x }
         }
     }
 
