@@ -2,7 +2,11 @@
 
 A small menu bar app for macOS that puts weather, scene wallpapers and a pet on your desktop.
 
-Snow piles up on your windows and slides off when you drag them. A fox, cat, bunny, panda or one of four other pets lives beside the Dock, reacts to what you do, and stays out of the way while you work. You can pick it up and throw it, and it climbs onto your windows, plays with the icons in your menu bar and dances when music is on.
+Snow piles up on your windows and along the bottom of the screen, and slides off when you drag a window. Rain leaves puddles, autumn leaves gather in heaps. A fox, cat, bunny, panda or one of four other pets lives beside the Dock, reacts to what you do, and stays out of the way while you work.
+
+- **Pets with a life of their own:** pick one up and throw it. It climbs onto your windows, plays with the icons in your menu bar, dances when music is on and splashes in the puddles.
+- **Two pets play together:** catch, paper planes, bubbles, building a snowman. Set one down beside the other and babies arrive.
+- **A focus timer with teeth:** the pets nap while you work, the end is impossible to miss, and if you wander onto social media a pet can fly up and close the tab.
 
 ![Snow falling on a night scene, piling on a window and the Dock, with a fox and a cat playing beside the Dock](preview/demo-snow.gif)
 
@@ -13,6 +17,10 @@ Snow piles up on your windows and slides off when you drag them. A fox, cat, bun
 | Autumn leaves, golden hour | Spring petals, morning |
 |---|---|
 | ![Leaves drifting over an autumn lake scene with a fox and a dog](preview/demo-autumn.gif) | ![Cherry petals over a spring scene with a fox and an egg pet](preview/demo-spring.gif) |
+
+| A family playing catch in the snow | Caught on social media during focus |
+|---|---|
+| ![A fox and a cat tossing a ball between them beside the Dock, with three babies and snow mounds around them](preview/demo-family.gif) | ![A fox rocketing up to the top of a window, saying "back to work!", and leaping back down](preview/demo-guard.gif) |
 
 **The eight pets**, each shown normal, happy (with a hat), laughing, in love, surprised, sad, crying, dizzy and asleep, plus the decorations:
 
@@ -51,21 +59,7 @@ Choose **Check for updates…** in Tuft's menu to see whether there is a newer v
 
 Your pets, settings and your own pictures are kept.
 
-Tuft needs no permissions unless you turn on **Social media during focus**. It never records your screen and never reads what you type.
-
-### Setting up Social media during focus
-
-This feature is off by default and is the only one that needs a permission.
-
-1. In Tuft's menu, choose **While I work ▸ Social media during focus** and pick **A pet reminds me** or **A pet closes the tab**.
-2. **Safari, Chrome, Arc, Brave, Edge:** the first time one of them shows a listed site during a focus session, macOS asks whether Tuft may control that browser. Click **Allow**. If you clicked Don't Allow, turn it on under **System Settings ▸ Privacy & Security ▸ Automation ▸ Tuft**.
-3. **Zen and Firefox** need the Accessibility permission instead:
-   1. In the same Tuft submenu, choose **Set up Accessibility…**. Tuft adds itself to the Accessibility list and opens it.
-   2. Switch Tuft on in that list, and confirm with your password or Touch ID. A banner says "Accessibility is on" when it has taken.
-   3. If Tuft is not in the list, click **+** and pick `Tuft.app` from your Applications folder.
-4. Start a focus session and open a listed site to check: a pet should fly up within a couple of seconds.
-
-**After every update**, macOS treats the new Tuft as a different app, because Tuft is not signed. If the pets stop reacting in Zen or Firefox, choose **Set up Accessibility…** again: it clears the old entry and adds the new one, so you only flip the switch. For the other browsers, click **Allow** again when asked.
+Tuft needs no permissions unless you turn on **Social media during focus** ([setup](#setting-up-social-media-during-focus)). It never records your screen and never reads what you type.
 
 ## What it does
 
@@ -111,12 +105,26 @@ Everything is in the menu bar icon, grouped under **Weather**, **Wallpaper**, **
 - **Calm while I work:** weather is drawn faintly over the window you're using, and thins out while you type.
 - **Weather stays behind the active window:** nothing falls in front of the window you're using at all.
 - **Focus timer:** 15, 25, 45 or 60 minutes with the pets asleep. The menu bar counts down, and the end is hard to miss: three chimes, a banner in the middle of the screen with confetti, and the menu bar says the session is done for two minutes.
-- **Social media during focus** (off by default): during a focus session, if the tab in front in your browser is on your social media list, a pet rockets up to the window and either reminds you or closes the tab, then goes back. Choose which, and edit the list, under **While I work ▸ Social media during focus**. It needs a permission: see Privacy.
+- **Social media during focus** (off by default): during a focus session, if the tab in front in your browser is on your social media list, a pet rockets up to the window and either reminds you or closes the tab, then goes back. Choose which, and edit the list, under **While I work ▸ Social media during focus**. It needs a permission: see [Setting up Social media during focus](#setting-up-social-media-during-focus).
 - **Hide during calls:** everything disappears while an app is using your microphone or camera.
 - **Ambient sound** (off by default): soft rain, wind or night crickets.
 - **Open at login.**
 
 It draws on the graphics chip at 30 frames a second and stops under full-screen apps. On battery it drops to 20 frames a second, halves the weather, checks window positions less often, and goes to sleep after you have been away for three minutes.
+
+## Setting up Social media during focus
+
+This feature is off by default and is the only one that needs a permission.
+
+1. In Tuft's menu, choose **While I work ▸ Social media during focus** and pick **A pet reminds me** or **A pet closes the tab**.
+2. **Safari, Chrome, Arc, Brave, Edge:** the first time one of them shows a listed site during a focus session, macOS asks whether Tuft may control that browser. Click **Allow**. If you clicked Don't Allow, turn it on under **System Settings ▸ Privacy & Security ▸ Automation ▸ Tuft**.
+3. **Zen and Firefox** need the Accessibility permission instead:
+   1. In the same Tuft submenu, choose **Set up Accessibility…**. Tuft adds itself to the Accessibility list and opens it.
+   2. Switch Tuft on in that list, and confirm with your password or Touch ID. A banner says "Accessibility is on" when it has taken.
+   3. If Tuft is not in the list, click **+** and pick `Tuft.app` from your Applications folder.
+4. Start a focus session and open a listed site to check: a pet should fly up within a couple of seconds.
+
+**After every update**, macOS treats the new Tuft as a different app, because Tuft is not signed. If the pets stop reacting in Zen or Firefox, choose **Set up Accessibility…** again: it clears the old entry and adds the new one, so you only flip the switch. For the other browsers, click **Allow** again when asked.
 
 ## Privacy
 
@@ -153,7 +161,7 @@ The source is a Swift package using AppKit and SpriteKit:
 
 | File | What it holds |
 |---|---|
-| `Sources/Tuft/App.swift` | Menu, overlay windows, timers, weather sync, call detection |
+| `Sources/Tuft/App.swift` | Menu, overlay windows, timers, focus sessions, weather sync, call detection |
 | `Sources/Tuft/Scene.swift` | Weather particles, snow piles, pets, toys, decorations |
 | `Sources/Tuft/Play.swift` | Feelings, music, picking pets up, menu bar play |
 | `Sources/Tuft/Family.swift` | Games for two pets, and babies |
