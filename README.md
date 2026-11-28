@@ -55,18 +55,18 @@ Tuft needs no permissions. It never records your screen and never reads what you
 
 ## What it does
 
-Everything is in the menu bar icon.
+Everything is in the menu bar icon, grouped under **Weather**, **Wallpaper**, **Pets**, **Decorate**, **While I work** and **Settings**.
 
 ### Weather
 - **Six kinds:** snow, leaves, starfall, rain, sakura, fireflies. Snow falls as small crystals, rain leaves ripples where it lands, and starfall streaks like meteors.
-- **Snow piles** on window tops and the Dock, in uneven drifts, and falls off when a window moves. Set how deep under **Snow depth**.
-- **The pointer pushes things around:** it parts falling snow, scatters resting leaves, and fireflies gather when it rests.
+- **Snow piles** on window tops and the Dock, in uneven drifts, and falls off when a window moves. Set how deep under **Weather ▸ Snow depth**.
+- **The pointer pushes things around:** it parts falling snow, sweeps settled snow into the air, scatters resting leaves, and fireflies gather when it rests.
 - **Match real weather:** type your city once and Tuft follows the actual conditions.
 
 ### Wallpapers
 - Eight scenes (snow, autumn, sky, village, rain, stars, fireflies, santa), each with its own picture for dawn, sunrise, morning, midday, golden hour, sunset, dusk and night.
 - **Follow time of day** changes the picture as the day goes on. Choosing a weather by hand never changes the picture; **Wallpaper ▸ Scene ▸ Change with real weather** lets the scene follow **Match real weather**.
-- **Any weather on any picture:** pick a scene under **Wallpaper ▸ Scene**, then choose what falls under **Weather (what falls)**, for example sakura petals over the rain scene.
+- **Any weather on any picture:** pick a scene under **Wallpaper ▸ Scene**, then choose what falls under **Weather**, for example sakura petals over the rain scene.
 - Small pictures are enlarged with a sharpening filter so they stay crisp on a big screen. Nothing is redrawn or generated.
 - **Restore my wallpaper** puts your own picture back.
 - **Use my own pictures:** opens a folder for your own images. Name them by season (`winter-night.jpg`) or as a full scene with one picture per time of day (`snow-dawn.jpg` … `snow-night.jpg`); full scenes show up under **Wallpaper ▸ Scene**.
@@ -74,16 +74,18 @@ Everything is in the menu bar icon.
 ### Pets
 - **Fox, cat, dog, bunny, panda, hamster, penguin or egg**, plus an optional second pet. Each can have a hat, a scarf or collar colour, and a name.
 - **Where they live:** both sides of the Dock, a bottom corner, on the Dock, or on the menu bar. With two pets, they spend about half the time together and half on opposite sides.
-- **Menu bar trips:** now and then a pet heads up to the menu bar and back by magic, balloon, umbrella, rocket, a big leap, a little cloud or a bubble. Turn this off with **Pets visit the menu bar**.
+- **Menu bar trips:** now and then a pet heads up to the menu bar and back by magic, balloon, umbrella, rocket, a big leap, a little cloud or a bubble. Turn this off with **Pets ▸ Visit the menu bar**.
 - **Menu bar play:** up there they stroll, sprint, play with the icons on the right side of the bar (bounce on one, leapfrog over it, hide behind it, hang under it, polish it), and ride tiny cars, wagons, skateboards and sleds while the other one runs after them.
-- **Window perching:** they climb onto the top edge of a window and sit there for a while. Turn this off with **Pets climb onto windows**.
+- **Window perching:** they climb onto the top edge of a window and sit there for a while. Turn this off with **Pets ▸ Climb onto windows**.
 - **Pick them up:** click a pet over bare desktop, or Option-click one anywhere, to lift it by the scruff. It swings as you move, and lands on a window, the Dock or the ground when you let go. Let go while moving to throw it; drop it on the menu bar to leave it there.
-- **Music:** when something is playing sound, they put on headphones and dance. Turn this off with **Pets dance when music plays**.
+- **Music:** when something is playing sound, they put on headphones and dance. Turn this off with **Pets ▸ Dance when music plays**.
 - **Typing along:** while you type, one opens a little laptop or a book beside you.
 - **Butterflies:** now and then one flutters by and they chase it.
 - **They react to you:** they laugh, cry, fall in love and get dizzy. They check in with a little speech bubble when you have worked a long stretch, startle at nearby clicks, watch the pointer, nap when you're away and greet you when you come back. Rest the pointer on one to pet it.
 - **Toys:** a ball, yarn, a leaf pile and a burrow on one side of the Dock; a little house, a food bowl and a bone on the other. The burrow and the house are a shortcut between the two sides. They all move along when the Dock gets wider or narrower.
 - **Play with them:** pick up the ball, yarn or bone and drag it around and the pets run after it and jump for it. Let go while moving to throw it. On their own they bat the ball and yarn about and carry the bone off for a chew.
+- **Games for two:** with two pets, they play catch, fly paper planes, blow and pop bubbles, high five, and build something together: a snowman in snow, a leaf heap in autumn, a sandcastle otherwise. In rain they share an umbrella.
+- **Babies:** pick one pet up and set it down beside the other and they cuddle; a baby arrives (sometimes twins or triplets), up to five in all and no more often than every 45 seconds. A baby is a small copy of one parent, or a mix of the two (fox, cat, dog, bunny and hamster can mix). Babies follow their parents, nap when they do, nudge the ball, jump for a toy you hold, like being petted, and can be picked up and dropped like their parents. Turn this off, or send the babies off, under **Pets ▸ Babies**.
 - **Mood:** petting and play make them happier. Ignored for a long time, they mope.
 
 ### Decorations
@@ -135,6 +137,8 @@ The source is a Swift package using AppKit and SpriteKit:
 |---|---|
 | `Sources/Tuft/App.swift` | Menu, overlay windows, timers, weather sync, call detection |
 | `Sources/Tuft/Scene.swift` | Weather particles, snow piles, pets, toys, decorations |
+| `Sources/Tuft/Play.swift` | Feelings, music, picking pets up, menu bar play |
+| `Sources/Tuft/Family.swift` | Games for two pets, and babies |
 | `Sources/Tuft/Art.swift` | Pets, hats, toys and decorations, drawn in code |
 | `Sources/Tuft/Painter.swift` | Wallpaper tinting and a code-drawn fallback scene |
 | `Sources/Tuft/Sound.swift` | Synthesized ambient sound |

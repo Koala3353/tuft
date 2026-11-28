@@ -475,7 +475,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func refreshLiveItems() {
-        moodItem?.title = "Mood: \(s.moodWord) · \(Int(s.happy))/100"
+        moodItem?.title = "Pets feel \(s.moodWord.lowercased()) · \(Int(s.happy))/100"
         var badge = ""
         if let end = s.focusEnd {
             let mins = max(1, Int(ceil(end.timeIntervalSinceNow / 60)))
@@ -518,6 +518,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.image = NSImage(systemSymbolName: s.weather.symbol, accessibilityDescription: "Tuft")
         statusItem.button?.imagePosition = .imageLeading
         let menu = NSMenu()
+        let mood = header("")
+        menu.addItem(mood)
+        moodItem = mood
+        let focus = ActionItem("") { [unowned self] in
+            s.focusEnd = s.focusEnd == nil ? Date().addingTimeInterval(25 * 60) : nil
+            refreshLiveItems()
+        }
+        menu.addItem(focus)
+        focusItem = focus
+        menu.addItem(.separator())
 
         let weather = NSMenu()
         for w in Weather.allCases {
@@ -534,7 +544,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             else { s.syncWeather = true; syncNow(); rebuildMenu() }
         })
         weather.addItem(ActionItem("Change city…") { [unowned self] in chooseCity(thenSync: s.syncWeather) })
-        menu.addItem(sub("Weather (what falls)", weather))
 
         let amount = NSMenu()
         for (title, v) in [("Light", 0.5), ("Normal", 1.0), ("Heavy", 1.8)] {
@@ -542,7 +551,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 s.intensity = v; rebuildMenu()
             })
         }
-        menu.addItem(sub("Amount", amount))
+        weather.addItem(.separator())
+        weather.addItem(sub("Amount", amount))
 
         let depth = NSMenu()
         for (title, v) in [("No piling", 0.0), ("Thin", 6.0), ("Medium", 14.0), ("Deep", 26.0)] {
@@ -552,7 +562,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 rebuildMenu()
             })
         }
-        menu.addItem(sub("Snow depth", depth))
+        weather.addItem(sub("Snow depth", depth))
+        menu.addItem(sub("Weather", weather))
 
         let wall = NSMenu()
         for t in DayTime.allCases {
@@ -613,6 +624,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         })
         menu.addItem(sub("Wallpaper", wall))
 
+        let pets = NSMenu()
+        pets.addItem(sub("First pet", petMenu(0)))
+        pets.addItem(sub("Second pet", petMenu(1)))
+        let home = NSMenu()
+        for (title, spot) in [("Both sides of the Dock", "sides"), ("Bottom right", "right"), ("Bottom left", "left"), ("On the Dock", "dock"), ("On the menu bar", "menubar")] {
+            home.addItem(ActionItem(title, checked: s.petSpot == spot) { [unowned self] in s.petSpot = spot; rebuildMenu() })
+        }
+        pets.addItem(sub("Where they live", home))
+        pets.addItem(.separator())
+        pets.addItem(header("What they do"))
+        pets.addItem(ActionItem("Play with toys", checked: s.toys) { [unowned self] in
+            s.toys.toggle(); rebuildMenu()
+        })
+        pets.addItem(ActionItem("Visit the menu bar", checked: s.barVisits) { [unowned self] in
+            s.barVisits.toggle(); rebuildMenu()
+        })
+        pets.addItem(ActionItem("Climb onto windows", checked: s.windowVisits) { [unowned self] in
+            s.windowVisits.toggle(); rebuildMenu()
+        })
+        pets.addItem(ActionItem("Dance when music plays", checked: s.music) { [unowned self] in
+            s.music.toggle()
+            if !s.music { s.playing = false }
+            rebuildMenu()
+        })
+        pets.addItem(.separator())
+        let family = NSMenu()
+        family.addItem(ActionItem("Pets can have babies", checked: s.babiesOn) { [unowned self] in
+            s.babiesOn.toggle(); rebuildMenu()
+        })
+        family.addItem(header("Pick one pet up and set it down beside the other"))
+        family.addItem(header(s.babies.isEmpty ? "No babies yet (up to \(Settings.babyCap))" : "Babies: \(s.babies.count) of \(Settings.babyCap)"))
+        if !s.babies.isEmpty {
+            family.addItem(.separator())
+            family.addItem(ActionItem("Send the babies off to play") { [unowned self] in
+                scenes.forEach { $0.clearBabies() }
+                s.babies = []
+                rebuildMenu()
+            })
+        }
+        pets.addItem(sub("Babies", family))
+        menu.addItem(sub("Pets", pets))
+
         let deco = NSMenu()
         for (title, kind) in [("Snow bun", "bun"), ("Little tree", "tree"), ("Lantern", "lantern"), ("Gift", "gift")] {
             deco.addItem(ActionItem("Add \(title.lowercased())") { [unowned self] in
@@ -626,72 +679,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             applyPause()
         })
         deco.addItem(.separator())
-        let hint = NSMenuItem(title: "Drag to move · right-click to remove", action: nil, keyEquivalent: "")
-        hint.isEnabled = false
-        deco.addItem(hint)
+        deco.addItem(header("Drag to move · right-click to remove"))
         deco.addItem(ActionItem("Clear all") { [unowned self] in scenes.forEach { $0.clearDecor() } })
         menu.addItem(sub("Decorate", deco))
 
-        menu.addItem(.separator())
-        menu.addItem(sub("Pet", petMenu(0)))
-        menu.addItem(sub("Second pet", petMenu(1)))
-        let home = NSMenu()
-        for (title, spot) in [("Both sides of the Dock", "sides"), ("Bottom right", "right"), ("Bottom left", "left"), ("On the Dock", "dock"), ("On the menu bar", "menubar")] {
-            home.addItem(ActionItem(title, checked: s.petSpot == spot) { [unowned self] in s.petSpot = spot; rebuildMenu() })
-        }
-        menu.addItem(sub("Pets live", home))
-        menu.addItem(ActionItem("Toys (ball, yarn, bone, leaves, burrow, house)", checked: s.toys) { [unowned self] in
-            s.toys.toggle(); rebuildMenu()
-        })
-        menu.addItem(ActionItem("Pets visit the menu bar", checked: s.barVisits) { [unowned self] in
-            s.barVisits.toggle(); rebuildMenu()
-        })
-        menu.addItem(ActionItem("Pets climb onto windows", checked: s.windowVisits) { [unowned self] in
-            s.windowVisits.toggle(); rebuildMenu()
-        })
-        menu.addItem(ActionItem("Pets dance when music plays", checked: s.music) { [unowned self] in
-            s.music.toggle()
-            if !s.music { s.playing = false }
-            rebuildMenu()
-        })
-        let mood = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-        mood.isEnabled = false
-        menu.addItem(mood)
-        moodItem = mood
-
-        menu.addItem(.separator())
-        let focus = ActionItem("") { [unowned self] in
-            s.focusEnd = s.focusEnd == nil ? Date().addingTimeInterval(25 * 60) : nil
-            refreshLiveItems()
-        }
-        menu.addItem(focus)
-        focusItem = focus
-        menu.addItem(ActionItem("Calm while I work", checked: s.calm) { [unowned self] in
+        let work = NSMenu()
+        work.addItem(ActionItem("Calm while I work", checked: s.calm) { [unowned self] in
             s.calm.toggle(); rebuildMenu()
         })
-        menu.addItem(ActionItem("Weather stays behind the active window", checked: s.behind) { [unowned self] in
+        work.addItem(ActionItem("Weather stays behind the active window", checked: s.behind) { [unowned self] in
             s.behind.toggle(); rebuildMenu()
         })
-        menu.addItem(ActionItem("Hide during calls", checked: s.hideOnCalls) { [unowned self] in
+        work.addItem(ActionItem("Hide during calls", checked: s.hideOnCalls) { [unowned self] in
             s.hideOnCalls.toggle()
             if !s.hideOnCalls { s.quiet = false; applyPause(); applySound() }
             rebuildMenu()
         })
-        menu.addItem(ActionItem("Ambient sound", checked: s.sound) { [unowned self] in
+        menu.addItem(sub("While I work", work))
+
+        let prefs = NSMenu()
+        prefs.addItem(ActionItem("Ambient sound", checked: s.sound) { [unowned self] in
             s.sound.toggle(); applySound(); rebuildMenu()
         })
-        menu.addItem(ActionItem("Smooth motion (60 fps)", checked: s.smooth) { [unowned self] in
+        prefs.addItem(ActionItem("Smooth motion (60 fps)", checked: s.smooth) { [unowned self] in
             s.smooth.toggle(); applyPause(); rebuildMenu()
         })
-        menu.addItem(ActionItem("Open at login", checked: SMAppService.mainApp.status == .enabled) { [unowned self] in
+        prefs.addItem(ActionItem("Open at login", checked: SMAppService.mainApp.status == .enabled) { [unowned self] in
             do {
                 if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() }
                 else { try SMAppService.mainApp.register() }
             } catch { NSSound.beep() }
             rebuildMenu()
         })
-
-        menu.addItem(ActionItem("Check for updates…") {
+        prefs.addItem(.separator())
+        prefs.addItem(ActionItem("Check for updates…") {
             Updates.latest { tag in
                 let alert = NSAlert()
                 if let tag, Updates.newer(tag, than: Updates.current) {
@@ -710,6 +731,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if alert.runModal() == .alertFirstButtonReturn, alert.buttons.count == 2 { NSWorkspace.shared.open(Updates.page) }
             }
         })
+        prefs.addItem(header("Tuft \(Updates.current)"))
+        menu.addItem(sub("Settings", prefs))
 
         menu.addItem(.separator())
         menu.addItem(ActionItem(s.paused ? "Resume" : "Pause") { [unowned self] in
@@ -718,6 +741,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(ActionItem("Quit Tuft") { NSApp.terminate(nil) })
         statusItem.menu = menu
         refreshLiveItems()
+    }
+
+    /// A greyed line of text: a heading or a hint.
+    private func header(_ title: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        return item
     }
 
     private func sub(_ title: String, _ menu: NSMenu) -> NSMenuItem {

@@ -208,7 +208,20 @@ enum Draw {
         var eyePatch: UInt32? = nil
     }
 
+    static let mixable = ["fox", "cat", "dog", "bunny", "hamster"]
+
     static func coat(_ kind: String) -> Coat {
+        // A baby of two different parents, "fox+cat": the build of the first in the colours of the second.
+        let pair = kind.split(separator: "+").map(String.init)
+        if pair.count == 2 {
+            var k = coat(pair[0])
+            let o = coat(pair[1])
+            k.body = o.body; k.shade = o.shade; k.legs = o.legs; k.stripes = o.stripes; k.patch = o.patch
+            k.innerEar = o.innerEar; k.iris = o.iris
+            if k.earTip != nil { k.earTip = o.legs }
+            if k.earColor != nil { k.earColor = o.legs }
+            return k
+        }
         switch kind {
         case "cat": return Coat(body: 0xA4ADC4, shade: 0x848DA8, legs: 0x6F7893, innerEar: 0xFFC9D6, tail: 1,
                                 scarf: 0xF4727E, collar: true, whiskers: true, iris: 0x4E9A63, stripes: 0x7C849E, fluff: true)
@@ -1067,6 +1080,33 @@ enum Art {
         c.paint(gumdrop(13, 15.5, 5, 4), 0xD9566A)
         c.shaded(ovalPath(13, 31, 11.5, 13.5), 0xF4727E, 0xD9566A)
         c.oval(9, 36, 2.6, 4, 0xFFFFFF, 0.5)
+    }
+    static let plane = Sprite(26, 14) { c in                  // a folded paper dart, nose to the right
+        let top = CGMutablePath()
+        top.move(to: CGPoint(x: 25, y: 7)); top.addLine(to: CGPoint(x: 1, y: 13)); top.addLine(to: CGPoint(x: 8, y: 6.5)); top.closeSubpath()
+        c.paint(top, 0xFFFFFF)
+        let under = CGMutablePath()
+        under.move(to: CGPoint(x: 25, y: 7)); under.addLine(to: CGPoint(x: 8, y: 6.5)); under.addLine(to: CGPoint(x: 10, y: 1)); under.closeSubpath()
+        c.paint(under, 0xC9D6EA)
+        let fold = CGMutablePath()
+        fold.move(to: CGPoint(x: 25, y: 7)); fold.addLine(to: CGPoint(x: 8, y: 6.5)); fold.addLine(to: CGPoint(x: 3, y: 4)); fold.closeSubpath()
+        c.paint(fold, 0xE6EDF8)
+    }
+    static let castle = Sprite(56, 44) { c in                 // a sandcastle with a little flag
+        c.oval(28, 4, 27, 4, 0xE9CF95)
+        c.shaded(roundRect(8, 3, 40, 18, 2), 0xF2D79C, 0xD9B56E)
+        c.shaded(roundRect(4, 3, 12, 26, 2), 0xF6DDA6, 0xD9B56E)
+        c.shaded(roundRect(40, 3, 12, 26, 2), 0xF6DDA6, 0xD9B56E)
+        c.shaded(roundRect(21, 14, 14, 20, 2), 0xF6DDA6, 0xD9B56E)
+        for x in [4.0, 9.0, 13.0, 40.0, 45.0, 49.0, 21.0, 26.5, 32.0] as [CGFloat] {
+            c.paint(roundRect(x, x > 20 && x < 36 ? 33 : 28, 3, 3, 0.6), 0xF6DDA6)
+        }
+        c.paint(roundRect(24, 3, 8, 9, 4), 0x9A7440)
+        c.setStrokeColor(rgb(0x8A6A4F)); c.setLineWidth(1)
+        c.move(to: CGPoint(x: 28, y: 35)); c.addLine(to: CGPoint(x: 28, y: 43)); c.strokePath()
+        let flag = CGMutablePath()
+        flag.move(to: CGPoint(x: 28, y: 43)); flag.addLine(to: CGPoint(x: 36, y: 40.5)); flag.addLine(to: CGPoint(x: 28, y: 38)); flag.closeSubpath()
+        c.paint(flag, 0xF4727E)
     }
     static let hole = Sprite(40, 12) { c in c.oval(20, 6, 19, 5.5, 0x6B5544); c.oval(20, 5.2, 16, 4, 0x2A2233) }
 

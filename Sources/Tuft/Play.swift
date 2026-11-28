@@ -36,7 +36,7 @@ extension WeatherScene {
         default: sp = Art.umbrella; pos = CGPoint(x: h.x + 10, y: h.y + 30)
         }
         let c = SKSpriteNode(texture: sp.tex, size: sp.size)
-        c.name = "prop"; c.position = pos; c.zPosition = 3
+        c.name = "prop"; c.position = pos; c.zPosition = 0.03
         c.setScale(0.2); c.run(.scale(to: 1, duration: 0.18))
         a.node.addChild(c)
     }
@@ -142,7 +142,7 @@ extension WeatherScene {
             n.childNode(withName: "phones")?.removeFromParent()
             if on {
                 let c = SKSpriteNode(texture: Art.phones.tex, size: Art.phones.size), h = headOf(a)
-                c.name = "phones"; c.position = CGPoint(x: h.x, y: h.y + 6); c.zPosition = 2
+                c.name = "phones"; c.position = CGPoint(x: h.x, y: h.y + 6); c.zPosition = 0.02
                 c.setScale(0.2); c.run(.scale(to: 1, duration: 0.2))
                 n.addChild(c)
                 if a.state == 0 { face(a, 4, 1.5); hop(a, height: 14) }
@@ -229,7 +229,7 @@ extension WeatherScene {
             face(a, 4, 1.4); a.squash = 0.25
             return
         }
-        a.state = 5
+        a.state = 5; a.thrown = true
         a.v = CGVector(dx: wind.dx * 0.55, dy: max(-300, min(760, wind.dy * 0.55)))
         face(a, 5, 0.6)
     }
@@ -288,7 +288,9 @@ extension WeatherScene {
         } else {                                                        // wheee
             face(a, 8, 1.5); a.timer = 1.7
             Settings.shared.cheer(2)
+            if a.thrown { meet(a) }                                     // set down beside the other one?
         }
+        a.thrown = false
     }
 
     /// The window it was sitting on moved, closed, or got covered.
@@ -674,6 +676,13 @@ extension WeatherScene {
             case "fall": a.node.position.y = 500; a.state = 5; a.v = CGVector(dx: 60, dy: 0)
             case "butterfly": startCritter(zone: zone, ground: groundFor(a, a.node.position.x))
             case "weather": weatherPlay(a)
+            case "catch", "plane", "build", "bubbles", "five", "baby":
+                guard a.slot == 0, let b = actors.first(where: { $0 !== a }) else { break }
+                let x = (zone.lowerBound + zone.upperBound) / 2
+                a.node.position.x = x - 30; b.node.position.x = x + 30; b.side = a.side
+                a.state = 0; b.state = 0; a.dir = 1; b.dir = -1
+                if name == "baby" { birthT = 0; a.thrown = true; meet(a) }
+                else { duet(a, b, ["catch": 0, "plane": 1, "build": 2, "bubbles": 3, "five": 4][name]!, zone: zone) }
             default: if let n = Int(name) { a.timer = 2.4; soloExtra(a, n, zone: zone) }
             }
         }

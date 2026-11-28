@@ -67,6 +67,10 @@ final class Settings {
     /// Pet happiness, 10...100. Petting and play raise it; it drifts down when ignored.
     var happy: Double { didSet { d.set(happy, forKey: "happy") } }
     var happyAt: Double
+    /// Dropping one pet beside the other can bring a baby along, up to `babyCap` of them.
+    var babiesOn: Bool { didSet { d.set(babiesOn, forKey: "babiesOn") } }
+    var babies: [String] { didSet { if !demo { d.set(babies, forKey: "babies") } } }   // the demo window never saves any
+    static let babyCap = 5
 
     // Runtime only
     var power: Double = 1      // 0.5 on battery or in Low Power Mode
@@ -83,7 +87,7 @@ final class Settings {
 
     private init() {
         d.register(defaults: ["weather": "snow", "intensity": 1.0, "pet": "fox", "petSpot": "sides", "calm": true,
-                              "followTime": true, "snowCap": 14.0, "toys": true, "barVisits": true, "windowVisits": true, "music": true, "hideOnCalls": true, "happy": 70.0])
+                              "followTime": true, "snowCap": 14.0, "toys": true, "barVisits": true, "windowVisits": true, "music": true, "hideOnCalls": true, "happy": 70.0, "babiesOn": true])
         weather = Weather(rawValue: d.string(forKey: "weather") ?? "snow") ?? .snow
         intensity = d.double(forKey: "intensity")
         followTime = d.bool(forKey: "followTime")
@@ -106,6 +110,8 @@ final class Settings {
         lat = d.double(forKey: "lat")
         lon = d.double(forKey: "lon")
         happy = d.double(forKey: "happy")
+        babiesOn = d.bool(forKey: "babiesOn")
+        babies = Array((d.stringArray(forKey: "babies") ?? []).prefix(Settings.babyCap))
         happyAt = d.double(forKey: "happyAt")
         if happyAt == 0 { happyAt = Date().timeIntervalSince1970 }
     }
@@ -168,6 +174,7 @@ final class PetActor {
     var item = CGRect.zero // the menu bar item it is heading for
     var propKind = ""
     var grooving = false, trail = false, chase = false
+    var thrown = false     // you let go of it, so where it lands is your doing
     init(slot: Int, node: SKSpriteNode, label: SKLabelNode, shadow: SKSpriteNode) {
         self.slot = slot; self.node = node; self.label = label; self.shadow = shadow
     }
@@ -265,6 +272,7 @@ final class WeatherScene: SKScene {
     var held: Toy?                 // the toy you are dragging
     let thread = SKShapeNode()     // the yarn's loose end
     var threadPts: [CGPoint] = []
+    var threadT: CGFloat = 0
     var ball: SKSpriteNode? { toys.first { $0.kind == 0 }?.node }
     var house: SKSpriteNode?, bowl: SKSpriteNode?, snowball: SKSpriteNode?
     var sbV: CGFloat = 0, sbR: CGFloat = 8
@@ -272,6 +280,10 @@ final class WeatherScene: SKScene {
     var fixedProps: [(node: SKSpriteNode, side: Int, fx: CGFloat, dy: CGFloat)] = []   // where each prop sits in its zone
     var propZones: (ClosedRange<CGFloat>, ClosedRange<CGFloat>) = (0...1, 0...1)
     var togetherT: CGFloat = 20, wantTogether = false, crossT: CGFloat = 0
+    var babies: [Baby] = [], babyKey = "", birthT: CGFloat = 0
+    var grabbedBaby: Baby?
+    var built: SKSpriteNode?       // whatever the two pets last built together
+    var spawnK: CGFloat = 1        // eases between the typing and not-typing amounts of weather
     var workT: CGFloat = 0, workStage = 0      // how long you have been working without a real break
     var barH: CGFloat = 24, notch = false
     /// Where the menu bar's status items sit, in this scene's coordinates.
@@ -404,11 +416,11 @@ final class WeatherScene: SKScene {
         for id in Array(lastRects.keys) where !seen.contains(id) {
             // Closed, hidden or minimised: whatever had settled on it drops instead of hanging in the air.
             if let old = lastRects[id], let h = piles[id] {
-                var budget = 90
-                for c in h.indices where h[c] > 1 && budget > 0 && c % 3 == 0 {
+                var budget = 160                       // it crumbles straight down, with nothing thrown upward
+                for c in h.indices where h[c] > 1 && budget > 0 && c % 2 == 0 {
                     budget -= 1
-                    let q = make(.flake, x: old.minX + CGFloat(c) * cw + 2, y: old.maxY + rnd(0, h[c]))
-                    q.vx = rnd(-30, 30); q.vy = rnd(-20, 40)
+                    let q = make(.flake, x: old.minX + CGFloat(c) * cw + rnd(0, cw), y: old.maxY + rnd(0, h[c]))
+                    q.vx = rnd(-10, 10); q.vy = rnd(-34, -2)
                 }
             }
             lastRects[id] = nil
@@ -423,10 +435,15 @@ final class WeatherScene: SKScene {
         for p in parts where p.resting && p.restWin != -1 {
             if !moved.contains(p.restWin), let sf = next.first(where: { $0.id == p.restWin }),
                sf.covers(p.node.position.x), abs(p.node.position.y - sf.y) < maxPile + 14 { continue }
-            p.resting = false
-            p.restWin = 0
-            p.vy = rnd(20, 90)
-            p.vx = rnd(-50, 50)
+            if moved.contains(p.restWin) {              // shaken off: a little toss, then it falls
+                p.resting = false; p.restWin = 0
+                p.vy = rnd(20, 90); p.vx = rnd(-50, 50)
+            } else if !seen.contains(p.restWin) {       // the window closed or was minimised: it just drops
+                p.resting = false; p.restWin = 0
+                p.vy = rnd(-30, 0); p.vx = rnd(-14, 14)
+            } else {                                    // another window now covers that edge: fade where it lies
+                p.life = min(p.life, 1.2)
+            }
         }
         let changed = !moved.isEmpty || gone || next.count != surfaces.count
         surfaces = next
@@ -529,17 +546,24 @@ final class WeatherScene: SKScene {
         pilesDirty = melting && any
     }
 
+    /// Sweep the pointer through settled snow and it flies up and along with the pointer, the way resting petals do.
     func brushPiles(_ speed: CGFloat) {
         guard speed > 40 else { return }
-        for s in surfaces where abs(mouse.y - (s.y + 6)) < 16 && mouse.x > s.x0 && mouse.x < s.x1 {
-            guard var h = piles[s.id] else { continue }
-            let c = Int((mouse.x - s.x0) / cw)
-            for k in max(0, c - 3)...min(h.count - 1, max(0, c + 3)) where h[k] > 1 {
-                h[k] *= 0.5
-                if Int.random(in: 0..<3) == 0 {
-                    let p = make(.flake, x: s.x0 + CGFloat(k) * cw, y: s.y + h[k] + 2)
-                    p.vx = mouseV.dx * 0.15 + rnd(-30, 30)
-                    p.vy = rnd(40, 120)
+        var budget = 16
+        for s in surfaces where mouse.x > s.x0 - 20 && mouse.x < s.x1 + 20 && mouse.y > s.y - 12 && mouse.y < s.y + maxPile + 22 {
+            guard var h = piles[s.id], !h.isEmpty else { continue }
+            let c = Int((mouse.x - s.x0) / cw), reach = speed > 500 ? 8 : 5
+            let lo = max(0, c - reach), hi = min(h.count - 1, c + reach)
+            guard lo <= hi else { continue }
+            for k in lo...hi where h[k] > 0.8 {
+                let lost = h[k] * 0.55
+                h[k] -= lost
+                var n = min(3, Int(lost / 2.5) + (Bool.random() ? 1 : 0))
+                while n > 0, budget > 0 {
+                    n -= 1; budget -= 1
+                    let p = make(.flake, x: s.x0 + CGFloat(k) * cw + rnd(0, cw), y: s.y + h[k] + rnd(1, 4))
+                    p.vx = wind.dx * 0.35 + rnd(-70, 70)
+                    p.vy = rnd(110, 250) + max(0, wind.dy * 0.2)
                 }
             }
             piles[s.id] = h
@@ -650,7 +674,9 @@ final class WeatherScene: SKScene {
 
     func spawn(_ dt: CGFloat) {
         let s = Settings.shared
-        let k = CGFloat(s.intensity * s.power) * size.width / 1440 * (s.busy && s.calm ? 0.4 : 1) * (s.focusing ? 0.3 : 1)
+        // Typing thins the weather; it thins and thickens gradually, never in a jump.
+        spawnK += ((s.busy && s.calm ? 0.4 : 1) - spawnK) * min(1, 0.35 * dt)
+        let k = CGFloat(s.intensity * s.power) * size.width / 1440 * spawnK * (s.focusing ? 0.3 : 1)
         let w = size.width, h = size.height
         func emit(_ rate: CGFloat, _ f: () -> Void) {
             acc += rate * dt
@@ -703,8 +729,9 @@ final class WeatherScene: SKScene {
                         if d2 < 8100, d2 > 1 {
                             // Pushed aside by the pointer and dragged along by its motion.
                             let d = sqrt(d2), f = (1 - d / 90) * dt
-                            p.vx += (dx / d * 520 + wind.dx * 2.2) * f
-                            p.vy += (dy / d * 520 + wind.dy * 2.2) * f
+                            let drag: CGFloat = p.kind == .flake ? 3.4 : 2.2
+                            p.vx += (dx / d * 520 + wind.dx * drag) * f
+                            p.vy += (dy / d * 520 + wind.dy * drag) * f
                         }
                     }
                     pos.x += p.vx * dt; pos.y += p.vy * dt
@@ -807,7 +834,8 @@ final class WeatherScene: SKScene {
                 // Ease in and out, so changing the active window never makes a whole screen of weather pop in at once.
                 let inside = (dim || behind) && p.kind != .heart && p.kind != .zzz && p.kind != .splash && focus.contains(pos)
                 let target: CGFloat = inside ? (behind ? 0 : 0.18) : 1
-                p.vis = p.vis < 0 ? target : p.vis + (target - p.vis) * min(1, 2.5 * dt)
+                // Dimming is quick and brightening slow, so switching windows never shows both at full strength.
+                p.vis = p.vis < 0 ? target : p.vis + (target - p.vis) * min(1, (target < p.vis ? 9 : 0.9) * dt)
                 n.alpha = a * p.vis
                 i += 1
             }
@@ -871,6 +899,7 @@ final class WeatherScene: SKScene {
             held = t; t.carrier = nil; t.v = .zero; t.node.removeAction(forKey: "slide")
             return
         }
+        if decorAt(p) == nil, let b = babyAt(p), canGrab(p) { grabBaby(b); return }
         if decorAt(p) == nil, let a = petAt(p), canGrab(p) { grab(a); return }
         guard let n = decorAt(p) else { return }
         if event.modifierFlags.contains(.control) || event.modifierFlags.contains(.option) { remove(n); return }
@@ -898,6 +927,7 @@ final class WeatherScene: SKScene {
             excite(t)
             return
         }
+        if let b = grabbedBaby { dropBaby(b); return }
         if let a = grabbed { release(a); return }
         guard let n = dragging else { return }
         n.zPosition = 20
@@ -1219,14 +1249,35 @@ final class WeatherScene: SKScene {
         }
         if let h = held { excite(h) }                               // dangle a toy and they come running
 
-        // The yarn leaves a loose thread behind it as it moves.
+        // The yarn trails a loose thread as it moves. The thread falls to the ground instead of hanging in the air,
+        // and once the yarn is still it is wound back in until only a short end is left.
         if let y = toys.first(where: { $0.kind == 1 }) {
             let q = CGPoint(x: y.node.position.x, y: y.node.position.y - 8)
-            if threadPts.isEmpty || hypot(q.x - threadPts.last!.x, q.y - threadPts.last!.y) > 7 {
-                threadPts.append(q)
-                if threadPts.count > 34 { threadPts.removeFirst() }
+            let moving = y.v != .zero || held === y || y.carrier != nil || y.node.action(forKey: "slide") != nil
+            var dirty = false
+            if threadPts.isEmpty { threadPts = [q]; dirty = true }
+            if threadPts.count < 2 || hypot(q.x - threadPts[threadPts.count - 2].x, q.y - threadPts[threadPts.count - 2].y) > 7 {
+                threadPts.append(q); dirty = true
+                if threadPts.count > 26 { threadPts.removeFirst() }
+            }
+            if threadPts[threadPts.count - 1] != q { threadPts[threadPts.count - 1] = q; dirty = true }   // the end stays on the ball
+            for i in 0..<(threadPts.count - 1) {
+                let floor = groundY(threadPts[i].x) + 2
+                if threadPts[i].y > floor { threadPts[i].y = max(floor, threadPts[i].y - 170 * dt); dirty = true }
+                else if threadPts[i].y < floor { threadPts[i].y = floor; dirty = true }
+            }
+            threadT += dt
+            if !moving, threadPts.count > 6, threadT > 0.09 { threadT = 0; threadPts.removeFirst(); dirty = true }
+            if dirty {
                 let path = CGMutablePath()
-                path.addLines(between: threadPts)
+                path.move(to: threadPts[0])
+                if threadPts.count > 2 {
+                    for i in 1..<(threadPts.count - 1) {             // a soft curve through the points
+                        let a = threadPts[i], b = threadPts[i + 1]
+                        path.addQuadCurve(to: CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2), control: a)
+                    }
+                }
+                path.addLine(to: q)
                 thread.path = path
             }
         }
@@ -1288,7 +1339,7 @@ final class WeatherScene: SKScene {
             let frames = Art.pet(kind, hat: st.hat(slot), scarf: st.scarf(slot))
             let n = SKSpriteNode(texture: frames[0].tex, size: frames[0].size)
             n.anchorPoint = CGPoint(x: 0.5, y: 0)
-            n.zPosition = 22
+            n.zPosition = 22 + CGFloat(slot) * 0.3      // one pet is wholly in front of the other, headphones and all
             let startSide = (slot == 1 && spot == "sides" && sideZones() != nil) ? 0 : 1
             let sz = startSide == 1 ? zone : petZone(0)
             let x = (sz.lowerBound + sz.upperBound) / 2 + (slot == 0 ? -55 : 55)
@@ -1307,6 +1358,7 @@ final class WeatherScene: SKScene {
             actors.append(a)
         }
         syncProps()
+        syncBabies()
         updateToys(dt, speed: speed)
         updateSnowball(dt)
         guard !actors.isEmpty else { return }
@@ -1338,6 +1390,7 @@ final class WeatherScene: SKScene {
         }
         for a in actors { updateActor(a, dt, t: t, speed: speed, zone: zoneFor(a)) }
         updateCritter(dt, t: t)
+        updateBabies(dt, t: t)
 
         if actors.count == 2 {                  // now and then one goes over to play with the other
             togetherT -= dt
@@ -1440,8 +1493,10 @@ final class WeatherScene: SKScene {
                 return
             }
             a.timer = 1.8; b.timer = 1.8
-            let pick = Int.random(in: 0..<6)
+            let pick = Int.random(in: 0..<11)
             switch pick {
+            case 6...10 where !a.bar && a.perch == 0:   // a proper game for two
+                duet(a, b, pick - 6, zone: zone)
             case 0:                              // nuzzle
                 face(a, 3, 1.6); face(b, 3, 1.6)
                 for (pet, d) in [(a, a.dir), (b, b.dir)] {
@@ -1955,7 +2010,7 @@ final class WeatherScene: SKScene {
 
         // Clicks pass through everywhere except on a decoration.
         let pass = !(dragging != nil || held != nil || grabbed != nil || (!decor.isEmpty && decorAt(mouse) != nil)
-                     || toyAt(mouse) != nil || (petAt(mouse) != nil && canGrab(mouse)))
+                     || toyAt(mouse) != nil || grabbedBaby != nil || ((petAt(mouse) != nil || babyAt(mouse) != nil) && canGrab(mouse)))
         if pass != passThrough { passThrough = pass; view?.window?.ignoresMouseEvents = pass }
 
         spawn(dt)
