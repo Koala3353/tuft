@@ -198,7 +198,7 @@ extension WeatherScene {
 
     // MARK: Babies
 
-    var babyScale: CGFloat { petScale * 0.56 }
+    var babyScale: CGFloat { petScale * 0.62 }
 
     private func babyKeyNow() -> String {
         let want = (onBar || actors.isEmpty) ? [] : Settings.shared.babies
@@ -226,9 +226,12 @@ extension WeatherScene {
         let frames = Art.pet(parts.first ?? "fox", hat: 0, scarf: parts.count > 1 ? Int(parts[1]) ?? 0 : 0)
         let n = SKSpriteNode(texture: frames[0].tex, size: frames[0].size)
         n.anchorPoint = CGPoint(x: 0.5, y: 0)
-        n.zPosition = 22.8 + CGFloat(babies.count) * 0.02
+        n.zPosition = 23.4 + CGFloat(babies.count) * 0.04      // in front of the toys, the heaps and the parents
         n.position = CGPoint(x: x, y: groundY(x))
         addChild(n)
+        let halo = SKSpriteNode(texture: Art.glow.tex, size: CGSize(width: 104, height: 92))   // a soft light behind it
+        halo.position = CGPoint(x: 4, y: 34); halo.zPosition = -0.02; halo.alpha = 0.42
+        n.addChild(halo)
         let sh = SKSpriteNode(texture: Art.shadow.tex, size: Art.shadow.size)
         sh.zPosition = 21
         addChild(sh)
@@ -299,7 +302,7 @@ extension WeatherScene {
     // MARK: Picking a baby up
 
     func babyAt(_ pt: CGPoint) -> Baby? {
-        let k = babyScale / 0.39
+        let k = babyScale / 0.434
         return babies.last { b in
             let p = b.node.position
             return abs(pt.x - p.x) < 15 * k && pt.y > p.y && pt.y < p.y + 36 * k
@@ -331,7 +334,7 @@ extension WeatherScene {
     func updateBabies(_ dt: CGFloat, t: CGFloat) {
         birthT = max(0, birthT - dt)
         guard !babies.isEmpty else { return }
-        let st = Settings.shared, sc = babyScale, k = sc / 0.39
+        let st = Settings.shared, sc = babyScale, k = sc / 0.434
         let resting = evAway || st.focusing
         let ballToy = toys.first { $0.kind == 0 }
         for b in babies {
@@ -419,6 +422,7 @@ extension WeatherScene {
                 case 3:                                                  // a nuzzle for a brother or sister
                     b.face = 10; b.faceT = 1.2
                     emote(Art.heart, x: x, y: gy + 34 * k).node.size = CGSize(width: 9, height: 9)
+                case 5: babySpot(b)
                 case 4:                                                  // jump for the toy
                     b.face = 4; b.faceT = 0.6; jump(b, 170); b.timer = 0.5
                 default: break
@@ -442,14 +446,25 @@ extension WeatherScene {
                 if parents.contains(where: { $0.state == 2 }), r < 60 {  // nap when a parent naps
                     b.state = 2; b.sit = true; b.timer = rnd(6, 12); break
                 }
-                func wander() { b.state = 1; b.goal = 0; b.sit = false; b.target = rnd(zone.lowerBound, zone.upperBound) }
+                // Stop beside the toys and heaps, never on top of them, so a baby is not lost among them.
+                func clearOf(_ v: CGFloat) -> CGFloat {
+                    var v = v
+                    let things = [pile, hole, house, bowl].compactMap { $0 } + toys.map { $0.node }
+                    for o in things where abs(o.position.x - v) < 24 * k { v = o.position.x + (v >= o.position.x ? 28 : -28) * k }
+                    return clamp(v)
+                }
+                func wander() { b.state = 1; b.goal = 0; b.sit = false; b.target = clearOf(rnd(zone.lowerBound, zone.upperBound)) }
                 switch r {
                 case 0..<34:
                     if let par = parents.randomElement() {
                         b.state = 1; b.goal = 1; b.sit = false
-                        b.target = clamp(par.node.position.x + (Bool.random() ? -1 : 1) * rnd(22, 42) * k)
+                        b.target = clearOf(par.node.position.x + (Bool.random() ? -1 : 1) * rnd(22, 42) * k)
                     } else { wander() }
-                case 34..<48: wander()
+                case 34..<40: wander()
+                case 40..<48:                                            // off to a puddle, a heap, a mound...
+                    if let s = spots.filter({ $0.kind == st.weather && $0.level > 0.4 && zone.contains($0.node.position.x) }).randomElement() {
+                        b.state = 1; b.goal = 5; b.sit = false; b.target = s.node.position.x
+                    } else { wander() }
                 case 48..<58:
                     b.hops = Int.random(in: 0...2); jump(b); b.face = 4; b.faceT = 1.2; b.timer = 1.8
                 case 58..<66:                                            // a tumble

@@ -71,6 +71,8 @@ final class Settings {
     var babiesOn: Bool { didSet { d.set(babiesOn, forKey: "babiesOn") } }
     var babies: [String] { didSet { if !demo { d.set(babies, forKey: "babies") } } }   // the demo window never saves any
     static let babyCap = 5
+    /// Weather settles along the bottom of the screen: a snow drift, puddles, heaps of leaves or petals.
+    var ground: Bool { didSet { d.set(ground, forKey: "ground") } }
 
     // Runtime only
     var power: Double = 1      // 0.5 on battery or in Low Power Mode
@@ -87,7 +89,7 @@ final class Settings {
 
     private init() {
         d.register(defaults: ["weather": "snow", "intensity": 1.0, "pet": "fox", "petSpot": "sides", "calm": true,
-                              "followTime": true, "snowCap": 14.0, "toys": true, "barVisits": true, "windowVisits": true, "music": true, "hideOnCalls": true, "happy": 70.0, "babiesOn": true])
+                              "followTime": true, "snowCap": 14.0, "toys": true, "barVisits": true, "windowVisits": true, "music": true, "hideOnCalls": true, "happy": 70.0, "babiesOn": true, "ground": true])
         weather = Weather(rawValue: d.string(forKey: "weather") ?? "snow") ?? .snow
         intensity = d.double(forKey: "intensity")
         followTime = d.bool(forKey: "followTime")
@@ -111,6 +113,7 @@ final class Settings {
         lon = d.double(forKey: "lon")
         happy = d.double(forKey: "happy")
         babiesOn = d.bool(forKey: "babiesOn")
+        ground = d.bool(forKey: "ground")
         babies = Array((d.stringArray(forKey: "babies") ?? []).prefix(Settings.babyCap))
         happyAt = d.double(forKey: "happyAt")
         if happyAt == 0 { happyAt = Date().timeIntervalSince1970 }
@@ -244,7 +247,7 @@ final class WeatherScene: SKScene {
     func capAt(_ id: Int, _ c: Int) -> CGFloat {
         let s = CGFloat(abs(id) % 89), x = CGFloat(c)
         let n = 0.5 + 0.25 * sin(x * 0.11 + s) + 0.15 * sin(x * 0.031 + s * 1.7) + 0.1 * sin(x * 0.37 + s * 0.6)
-        return maxPile * (0.35 + 0.65 * n)
+        return maxPile * (id == -3 ? 0.55 : 1) * (0.35 + 0.65 * n)      // the drift along the bottom of the screen stays thin
     }
     var dock: CGRect?
     var parts: [Particle] = [], pool: [Particle] = []
@@ -282,6 +285,7 @@ final class WeatherScene: SKScene {
     var togetherT: CGFloat = 20, wantTogether = false, crossT: CGFloat = 0
     var babies: [Baby] = [], babyKey = "", birthT: CGFloat = 0
     var grabbedBaby: Baby?
+    var spots: [GroundSpot] = [], spotT: CGFloat = 0, groundAge: CGFloat = 0
     var built: SKSpriteNode?       // whatever the two pets last built together
     var spawnK: CGFloat = 1        // eases between the typing and not-typing amounts of weather
     var workT: CGFloat = 0, workStage = 0      // how long you have been working without a real break
@@ -431,6 +435,7 @@ final class WeatherScene: SKScene {
         if let d = dock {
             next.append(Surface(id: -2, x0: d.minX, x1: d.maxX, y: d.maxY, ranges: [(d.minX + 8, d.maxX - 8)]))
         }
+        if let g = groundSurface() { next.append(g) }
         // Anything resting on an edge that moved, vanished or got covered by another window lets go.
         for p in parts where p.resting && p.restWin != -1 {
             if !moved.contains(p.restWin), let sf = next.first(where: { $0.id == p.restWin }),
@@ -1597,6 +1602,7 @@ final class WeatherScene: SKScene {
             face(a, 4, 0.8); hop(a, height: 30)
             a.timer = 0.7; a.chase = critter != nil
         case 11: itemAct(a)                      // reached a menu bar item
+        case 13: playSpot(a)                     // reached a puddle, a heap, a mound...
         case 12:                                 // crept up on the other pet: boo!
             guard let b = buddy(a), b.state == 0 || b.state == 2 else { laugh(a); return }
             a.dir = b.node.position.x > p.x ? 1 : -1; b.dir = -a.dir
@@ -1783,7 +1789,7 @@ final class WeatherScene: SKScene {
                 break
             }
             if a.bar || onBar, barPlay(a, r, zone: zone) { break }         // up on the bar
-            if (76..<95).contains(r), st.toys, a.perch == 0, !a.bar {
+            if (76..<95).contains(r), a.perch == 0, !a.bar, !onBar {
                 func mine(_ node: SKSpriteNode?) -> SKSpriteNode? {
                     guard let node, zone.contains(node.position.x) else { return nil }
                     return node
@@ -1798,6 +1804,9 @@ final class WeatherScene: SKScene {
                 if let hs = mine(house) { goals.append((6, hs)) }
                 if let bw = mine(bowl) { goals.append((7, bw)) }
                 if let sb = mine(snowball) { goals.append((8, sb)); goals.append((8, sb)) }
+                for s in spots where s.kind == st.weather && s.level > 0.4 {          // whatever the weather left on the ground
+                    if let node = mine(s.node) { goals.append((13, node)); goals.append((13, node)) }
+                }
                 if let g = goals.randomElement() {
                     a.goal = g.0; a.state = 1; a.sit = false; a.target = g.1.position.x
                     a.toy = toys.first { $0.node === g.1 }
@@ -2016,6 +2025,7 @@ final class WeatherScene: SKScene {
         spawn(dt)
         step(dt, t: CGFloat(currentTime.truncatingRemainder(dividingBy: 3600)), speed: speed)
         brushPiles(speed)
+        updateGround(dt, t: CGFloat(currentTime.truncatingRemainder(dividingBy: 3600)))
         pileTimer += dt
         if pileTimer > 0.2 {
             pileTimer = 0

@@ -1081,6 +1081,40 @@ enum Art {
         c.shaded(ovalPath(13, 31, 11.5, 13.5), 0xF4727E, 0xD9566A)
         c.oval(9, 36, 2.6, 4, 0xFFFFFF, 0.5)
     }
+    static let puddle = Sprite(70, 12) { c in
+        c.oval(35, 6, 34, 5.2, 0x7FB4E8, 0.5)
+        c.oval(35, 6.4, 29, 3.8, 0xA9D2F7, 0.55)
+        c.oval(24, 7.6, 10, 1.2, 0xFFFFFF, 0.5)
+        c.oval(47, 4.6, 6, 0.9, 0xFFFFFF, 0.35)
+    }
+    static let mound = Sprite(54, 18) { c in
+        c.shaded(gumdrop(27, 0, 52, 17), 0xFFFFFF, 0xCFDDF2)
+        c.shaded(gumdrop(13, 0, 22, 9), 0xFFFFFF, 0xD6E2F4)
+        c.oval(20, 11, 5, 1.6, 0xFFFFFF, 0.9)
+    }
+    static let petalHeap = Sprite(52, 18) { c in
+        let cols: [UInt32] = [0xFFD1E0, 0xFFB7CF, 0xFFFFFF, 0xFFE4EC, 0xF79BB8]
+        var r = RNG(s: 11)
+        for i in 0..<26 {
+            let x = r.r(5, 47), y = r.r(1.5, 5) + (1 - abs(x - 26) / 22) * 9
+            c.saveGState(); c.translateBy(x: x, y: y); c.rotate(by: r.r(-1.2, 1.2))
+            c.oval(0, 0, 4.6, 2.6, cols[i % 5])
+            c.restoreGState()
+        }
+    }
+    static let fallenStar = Sprite(26, 26) { c in
+        c.glow(13, 11, 13, 0xFFE9A8, 0.75)
+        c.paint(starPath(13, 10, 8, 3.6), 0xFFE27A)
+        c.paint(starPath(13, 10, 4.2, 1.9), 0xFFFBE0)
+    }
+    static let mushroom = Sprite(22, 24) { c in
+        c.glow(11, 13, 11, 0x9CFFD0, 0.6)
+        c.paint(roundRect(8.6, 0, 4.8, 11, 2), 0xEFFFF4)
+        let cap = CGMutablePath()
+        cap.move(to: CGPoint(x: 2, y: 10)); cap.addQuadCurve(to: CGPoint(x: 20, y: 10), control: CGPoint(x: 11, y: 27)); cap.closeSubpath()
+        c.paint(cap, 0x58D6A6)
+        for (x, y, d) in [(7.5, 13.5, 1.5), (12.5, 16.5, 1.8), (15.5, 12.5, 1.2)] as [(CGFloat, CGFloat, CGFloat)] { c.oval(x, y, d, d, 0xEFFFF4) }
+    }
     static let plane = Sprite(26, 14) { c in                  // a folded paper dart, nose to the right
         let top = CGMutablePath()
         top.move(to: CGPoint(x: 25, y: 7)); top.addLine(to: CGPoint(x: 1, y: 13)); top.addLine(to: CGPoint(x: 8, y: 6.5)); top.closeSubpath()

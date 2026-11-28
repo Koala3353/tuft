@@ -552,6 +552,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             })
         }
         weather.addItem(.separator())
+        weather.addItem(ActionItem("Settles on the ground", checked: s.ground) { [unowned self] in
+            s.ground.toggle(); rebuildMenu()
+        })
         weather.addItem(sub("Amount", amount))
 
         let depth = NSMenu()

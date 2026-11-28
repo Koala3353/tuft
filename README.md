@@ -60,6 +60,7 @@ Everything is in the menu bar icon, grouped under **Weather**, **Wallpaper**, **
 ### Weather
 - **Six kinds:** snow, leaves, starfall, rain, sakura, fireflies. Snow falls as small crystals, rain leaves ripples where it lands, and starfall streaks like meteors.
 - **Snow piles** on window tops and the Dock, in uneven drifts, and falls off when a window moves. Set how deep under **Weather ▸ Snow depth**.
+- **It settles on the ground too:** along the bottom of the screen snow builds a thin drift with a few mounds, rain leaves puddles here and there, autumn leaves and sakura petals gather in heaps, starfall leaves fallen stars and firefly nights grow glowing mushrooms. They come slowly and go when the weather changes. Pets and babies play in them: stomping in puddles, diving into heaps, flopping in the snow, wishing on a star. Turn this off with **Weather ▸ Settles on the ground**.
 - **The pointer pushes things around:** it parts falling snow, sweeps settled snow into the air, scatters resting leaves, and fireflies gather when it rests.
 - **Match real weather:** type your city once and Tuft follows the actual conditions.
 
@@ -139,6 +140,7 @@ The source is a Swift package using AppKit and SpriteKit:
 | `Sources/Tuft/Scene.swift` | Weather particles, snow piles, pets, toys, decorations |
 | `Sources/Tuft/Play.swift` | Feelings, music, picking pets up, menu bar play |
 | `Sources/Tuft/Family.swift` | Games for two pets, and babies |
+| `Sources/Tuft/Ground.swift` | What the weather leaves on the ground |
 | `Sources/Tuft/Art.swift` | Pets, hats, toys and decorations, drawn in code |
 | `Sources/Tuft/Painter.swift` | Wallpaper tinting and a code-drawn fallback scene |
 | `Sources/Tuft/Sound.swift` | Synthesized ambient sound |
