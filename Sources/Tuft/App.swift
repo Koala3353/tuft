@@ -189,6 +189,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var guardPending = false, guardBusyUntil = 0.0
     private var lastNag: [String: Double] = [:]
 
+    /// Opens the Accessibility list with Tuft already in it, then watches for you to flip the switch.
+    private func setUpAccess() {
+        FocusGuard.setUp()
+        scenes.first?.banner("Turn on Tuft", "In the Accessibility list that just opened, switch Tuft on.", seconds: 6, party: false)
+        var tries = 0
+        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] t in
+            tries += 1
+            if FocusGuard.trusted {
+                t.invalidate()
+                self?.rebuildMenu()
+                self?.scenes.first?.banner("Accessibility is on", "Pets can now watch Zen and Firefox during focus.", seconds: 4, party: false)
+            } else if tries > 180 { t.invalidate() }
+        }
+    }
+
     /// During focus: is the frontmost browser showing a social media tab? If so a pet goes up and deals with it.
     private func guardTick() {
         let now = CACurrentMediaTime()
@@ -761,8 +776,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for (i, title) in ["Off", "A pet reminds me", "A pet closes the tab"].enumerated() {
             guardMenu.addItem(ActionItem(title, checked: s.guardMode == i) { [unowned self] in
                 s.guardMode = i
-                if i > 0, FocusGuard.geckoRunning, !FocusGuard.trusted { FocusGuard.askForAccess() }
                 rebuildMenu()
+                if i > 0, FocusGuard.geckoRunning, !FocusGuard.trusted { setUpAccess() }
             })
         }
         guardMenu.addItem(.separator())
@@ -774,12 +789,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guardMenu.addItem(.separator())
         guardMenu.addItem(header("Only during a focus session"))
         guardMenu.addItem(header("Safari, Chrome, Arc, Brave, Edge: macOS asks you to allow it"))
-        guardMenu.addItem(header(FocusGuard.trusted ? "Zen, Firefox: Accessibility is allowed" : "Zen, Firefox: needs Accessibility"))
+        guardMenu.addItem(header(FocusGuard.trusted ? "Zen, Firefox: Accessibility is allowed ✓" : "Zen, Firefox: needs Accessibility"))
         if !FocusGuard.trusted {
-            guardMenu.addItem(ActionItem("Open Accessibility settings…") {
-                FocusGuard.askForAccess()
-                if let u = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") { NSWorkspace.shared.open(u) }
-            })
+            guardMenu.addItem(ActionItem("Set up Accessibility…") { [unowned self] in setUpAccess() })
         }
         work.addItem(.separator())
         work.addItem(sub("Social media during focus", guardMenu))

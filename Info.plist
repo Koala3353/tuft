@@ -8,8 +8,8 @@
     <key>CFBundleExecutable</key><string>Tuft</string>
     <key>CFBundleIconFile</key><string>Tuft</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>2.3.0</string>
-    <key>CFBundleVersion</key><string>13</string>
+    <key>CFBundleShortVersionString</key><string>2.3.1</string>
+    <key>CFBundleVersion</key><string>14</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>NSAppleEventsUsageDescription</key><string>During a focus session, Tuft asks your browser which site the active tab is on, and closes the tab if it is on your social media list. Only if you turned this on.</string>
     <key>LSUIElement</key><true/>

@@ -44,6 +44,21 @@ enum FocusGuard {
         _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
     }
 
+    /// One click from the menu: clears any entry left by an older build of Tuft (macOS ignores those), has macOS add
+    /// this build to the Accessibility list, and opens that list. All that is left for you is to flip the switch.
+    static func setUp() {
+        if let id = Bundle.main.bundleIdentifier {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+            p.arguments = ["reset", "Accessibility", id]
+            p.standardOutput = FileHandle.nullDevice; p.standardError = FileHandle.nullDevice
+            try? p.run()
+            p.waitUntilExit()
+        }
+        askForAccess()
+        if let u = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") { NSWorkspace.shared.open(u) }
+    }
+
     /// The site on your list that this address belongs to, if any.
     static func hostMatch(_ url: String) -> String? {
         guard let host = URL(string: url)?.host?.lowercased() else { return nil }

@@ -60,13 +60,12 @@ This feature is off by default and is the only one that needs a permission.
 1. In Tuft's menu, choose **While I work ▸ Social media during focus** and pick **A pet reminds me** or **A pet closes the tab**.
 2. **Safari, Chrome, Arc, Brave, Edge:** the first time one of them shows a listed site during a focus session, macOS asks whether Tuft may control that browser. Click **Allow**. If you clicked Don't Allow, turn it on under **System Settings ▸ Privacy & Security ▸ Automation ▸ Tuft**.
 3. **Zen and Firefox** need the Accessibility permission instead:
-   1. Open **System Settings ▸ Privacy & Security ▸ Accessibility** (or choose **Open Accessibility settings…** in the same Tuft submenu).
-   2. If Tuft is not in the list, click **+**, pick `Tuft.app` from your Applications folder, and confirm with your password or Touch ID. You can also drag `Tuft.app` from Finder into the list.
-   3. Make sure the switch beside Tuft is on.
-   4. Back in Tuft's submenu, the line should now read "Zen, Firefox: Accessibility is allowed".
+   1. In the same Tuft submenu, choose **Set up Accessibility…**. Tuft adds itself to the Accessibility list and opens it.
+   2. Switch Tuft on in that list, and confirm with your password or Touch ID. A banner says "Accessibility is on" when it has taken.
+   3. If Tuft is not in the list, click **+** and pick `Tuft.app` from your Applications folder.
 4. Start a focus session and open a listed site to check: a pet should fly up within a couple of seconds.
 
-**After every update**, macOS treats the new Tuft as a different app, because Tuft is not signed. If the pets stop reacting in Zen or Firefox, select Tuft in the Accessibility list, remove it with **−**, and add it again. For the other browsers, click **Allow** again when asked.
+**After every update**, macOS treats the new Tuft as a different app, because Tuft is not signed. If the pets stop reacting in Zen or Firefox, choose **Set up Accessibility…** again: it clears the old entry and adds the new one, so you only flip the switch. For the other browsers, click **Allow** again when asked.
 
 ## What it does
 
