@@ -51,7 +51,22 @@ Choose **Check for updates…** in Tuft's menu to see whether there is a newer v
 
 Your pets, settings and your own pictures are kept.
 
-Tuft needs no permissions. It never records your screen and never reads what you type.
+Tuft needs no permissions unless you turn on **Social media during focus**. It never records your screen and never reads what you type.
+
+### Setting up Social media during focus
+
+This feature is off by default and is the only one that needs a permission.
+
+1. In Tuft's menu, choose **While I work ▸ Social media during focus** and pick **A pet reminds me** or **A pet closes the tab**.
+2. **Safari, Chrome, Arc, Brave, Edge:** the first time one of them shows a listed site during a focus session, macOS asks whether Tuft may control that browser. Click **Allow**. If you clicked Don't Allow, turn it on under **System Settings ▸ Privacy & Security ▸ Automation ▸ Tuft**.
+3. **Zen and Firefox** need the Accessibility permission instead:
+   1. Open **System Settings ▸ Privacy & Security ▸ Accessibility** (or choose **Open Accessibility settings…** in the same Tuft submenu).
+   2. If Tuft is not in the list, click **+**, pick `Tuft.app` from your Applications folder, and confirm with your password or Touch ID. You can also drag `Tuft.app` from Finder into the list.
+   3. Make sure the switch beside Tuft is on.
+   4. Back in Tuft's submenu, the line should now read "Zen, Firefox: Accessibility is allowed".
+4. Start a focus session and open a listed site to check: a pet should fly up within a couple of seconds.
+
+**After every update**, macOS treats the new Tuft as a different app, because Tuft is not signed. If the pets stop reacting in Zen or Firefox, select Tuft in the Accessibility list, remove it with **−**, and add it again. For the other browsers, click **Allow** again when asked.
 
 ## What it does
 
@@ -96,7 +111,8 @@ Everything is in the menu bar icon, grouped under **Weather**, **Wallpaper**, **
 ### Staying out of your way
 - **Calm while I work:** weather is drawn faintly over the window you're using, and thins out while you type.
 - **Weather stays behind the active window:** nothing falls in front of the window you're using at all.
-- **Focus timer:** 25 minutes with the pets asleep and a small celebration at the end.
+- **Focus timer:** 15, 25, 45 or 60 minutes with the pets asleep. The menu bar counts down, and the end is hard to miss: three chimes, a banner in the middle of the screen with confetti, and the menu bar says the session is done for two minutes.
+- **Social media during focus** (off by default): during a focus session, if the tab in front in your browser is on your social media list, a pet rockets up to the window and either reminds you or closes the tab, then goes back. Choose which, and edit the list, under **While I work ▸ Social media during focus**. It needs a permission: see Privacy.
 - **Hide during calls:** everything disappears while an app is using your microphone or camera.
 - **Ambient sound** (off by default): soft rain, wind or night crickets.
 - **Open at login.**
@@ -109,6 +125,7 @@ It draws on the graphics chip at 30 frames a second and stops under full-screen 
 - Typing and click reactions use only the time since the last key press or click. Tuft cannot see which keys you press.
 - Call detection asks macOS whether the microphone or a camera is in use. Tuft never opens either.
 - Music detection asks macOS whether any app is sending sound to the speakers. Tuft never listens to the sound and does not know what is playing.
+- **Social media during focus** is off unless you turn it on, and works only while a focus session runs. For Safari, Chrome, Arc, Brave and Edge, Tuft asks the browser for the address of the tab in front, and macOS asks you to allow that for each browser. Zen and Firefox cannot be asked, so Tuft reads the title of their front window and sends the close-tab shortcut, which needs the Accessibility permission. The address or title is compared with your list on your Mac and then forgotten: it is never stored or sent.
 - Menu bar play uses only the position and size of the icons in the menu bar. Tuft does not read their names or what they show.
 
 ## Known limits
@@ -116,6 +133,7 @@ It draws on the graphics chip at 30 frames a second and stops under full-screen 
 - The Dock's width is worked out from the icons in it, so snow and pets can sit a few points off its real edges, and a magnified Dock is not followed.
 - If you keep the menu bar always hidden, a window that fills the whole screen is treated as full screen and Tuft hides.
 - Snow does not pile on maximised windows, because their top edge is under the menu bar.
+- **Social media during focus** in Zen and Firefox goes by the page title, so a page that only mentions a site in its title counts, and a page whose title leaves the site out is missed. Because Tuft is not signed, macOS may ask for these permissions again after an update.
 - Sharing your screen with the microphone and camera both off is not detected.
 - On the menu bar, pets may overlap menu titles or status icons.
 - **Open at login** may be refused for an unsigned app. If so, add Tuft under **System Settings ▸ General ▸ Login Items**.
@@ -140,6 +158,7 @@ The source is a Swift package using AppKit and SpriteKit:
 | `Sources/Tuft/Scene.swift` | Weather particles, snow piles, pets, toys, decorations |
 | `Sources/Tuft/Play.swift` | Feelings, music, picking pets up, menu bar play |
 | `Sources/Tuft/Family.swift` | Games for two pets, and babies |
+| `Sources/Tuft/FocusGuard.swift` | Social media tabs during focus |
 | `Sources/Tuft/Ground.swift` | What the weather leaves on the ground |
 | `Sources/Tuft/Art.swift` | Pets, hats, toys and decorations, drawn in code |
 | `Sources/Tuft/Painter.swift` | Wallpaper tinting and a code-drawn fallback scene |

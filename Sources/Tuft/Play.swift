@@ -676,6 +676,8 @@ extension WeatherScene {
             case "fall": a.node.position.y = 500; a.state = 5; a.v = CGVector(dx: 60, dy: 0)
             case "butterfly": startCritter(zone: zone, ground: groundFor(a, a.node.position.x))
             case "weather": weatherPlay(a)
+            case "guard": if a.slot == 0 { guardFly(word: "back to work!") { } }
+            case "focus": if a.slot == 0 { banner("Focus done", "25 minutes. Time for a break.", seconds: 10, party: true); st.celebrate = true }
             case "catch", "plane", "build", "bubbles", "five", "baby":
                 guard a.slot == 0, let b = actors.first(where: { $0 !== a }) else { break }
                 let x = (zone.lowerBound + zone.upperBound) / 2

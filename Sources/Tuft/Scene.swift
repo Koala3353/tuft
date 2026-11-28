@@ -73,6 +73,8 @@ final class Settings {
     static let babyCap = 5
     /// Weather settles along the bottom of the screen: a snow drift, puddles, heaps of leaves or petals.
     var ground: Bool { didSet { d.set(ground, forKey: "ground") } }
+    /// During focus, what a pet does about a social media tab: 0 nothing, 1 reminds you, 2 closes it.
+    var guardMode: Int { didSet { d.set(guardMode, forKey: "guardMode") } }
 
     // Runtime only
     var power: Double = 1      // 0.5 on battery or in Low Power Mode
@@ -114,6 +116,7 @@ final class Settings {
         happy = d.double(forKey: "happy")
         babiesOn = d.bool(forKey: "babiesOn")
         ground = d.bool(forKey: "ground")
+        guardMode = d.integer(forKey: "guardMode")
         babies = Array((d.stringArray(forKey: "babies") ?? []).prefix(Settings.babyCap))
         happyAt = d.double(forKey: "happyAt")
         if happyAt == 0 { happyAt = Date().timeIntervalSince1970 }
@@ -286,6 +289,8 @@ final class WeatherScene: SKScene {
     var babies: [Baby] = [], babyKey = "", birthT: CGFloat = 0
     var grabbedBaby: Baby?
     var spots: [GroundSpot] = [], spotT: CGFloat = 0, groundAge: CGFloat = 0
+    var guardT: CGFloat = 0        // a pet is off dealing with a tab: it does not nap meanwhile
+    var partyT: CGFloat = 0        // confetti is showing: nothing is dimmed over the active window
     var built: SKSpriteNode?       // whatever the two pets last built together
     var spawnK: CGFloat = 1        // eases between the typing and not-typing amounts of weather
     var workT: CGFloat = 0, workStage = 0      // how long you have been working without a real break
@@ -837,7 +842,7 @@ final class WeatherScene: SKScene {
             } else {
                 n.position = pos
                 // Ease in and out, so changing the active window never makes a whole screen of weather pop in at once.
-                let inside = (dim || behind) && p.kind != .heart && p.kind != .zzz && p.kind != .splash && focus.contains(pos)
+                let inside = (dim || behind) && partyT <= 0 && p.kind != .heart && p.kind != .zzz && p.kind != .splash && focus.contains(pos)
                 let target: CGFloat = inside ? (behind ? 0 : 0.18) : 1
                 // Dimming is quick and brightening slow, so switching windows never shows both at full strength.
                 p.vis = p.vis < 0 ? target : p.vis + (target - p.vis) * min(1, (target < p.vis ? 9 : 0.9) * dt)
@@ -1624,7 +1629,7 @@ final class WeatherScene: SKScene {
         if a.blinkT < -0.13 { a.blinkT = rnd(2, 5.5) }
         a.squash += (0 - a.squash) * min(1, 7 * dt)
         let sad = st.happy < 35
-        let resting = evAway || st.focusing
+        let resting = (evAway || st.focusing) && guardT <= 0
         a.flip += (a.dir - a.flip) * min(1, 16 * dt)
         if a.state == 5 { fallStep(a, dt); finishActor(a, t: t); return }
         if a.state == 6 { heldStep(a, dt, speed: speed); finishActor(a, t: t); return }
@@ -2025,6 +2030,8 @@ final class WeatherScene: SKScene {
         spawn(dt)
         step(dt, t: CGFloat(currentTime.truncatingRemainder(dividingBy: 3600)), speed: speed)
         brushPiles(speed)
+        partyT = max(0, partyT - dt)
+        guardT = max(0, guardT - dt)
         updateGround(dt, t: CGFloat(currentTime.truncatingRemainder(dividingBy: 3600)))
         pileTimer += dt
         if pileTimer > 0.2 {

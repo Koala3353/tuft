@@ -101,6 +101,49 @@ extension WeatherScene {
         }
     }
 
+    /// A card in the upper middle of the screen, for things you should not miss. `party` adds confetti.
+    func banner(_ title: String, _ sub: String, seconds: Double, party: Bool) {
+        childNode(withName: "banner")?.removeFromParent()
+        let box = SKNode()
+        box.name = "banner"; box.zPosition = 60
+        box.position = CGPoint(x: size.width / 2, y: size.height * 0.72)
+        let t = SKLabelNode(fontNamed: "AvenirNext-Bold")
+        t.text = title; t.fontSize = party ? 34 : 24; t.fontColor = .white; t.verticalAlignmentMode = .center
+        t.position.y = 13
+        let l = SKLabelNode(fontNamed: "AvenirNext-Medium")
+        l.text = sub; l.fontSize = 15; l.fontColor = SKColor(white: 1, alpha: 0.85); l.verticalAlignmentMode = .center
+        l.position.y = -19
+        let w = max(t.frame.width, l.frame.width) + 72
+        let bg = SKShapeNode(rect: CGRect(x: -w / 2, y: -46, width: w, height: 94), cornerRadius: 24)
+        bg.fillColor = SKColor(cgColor: rgb(party ? 0x2B2550 : 0x20222E, 0.94)) ?? .black
+        bg.strokeColor = SKColor(white: 1, alpha: party ? 0.5 : 0.18); bg.lineWidth = party ? 2 : 1
+        bg.zPosition = -1
+        box.addChild(bg); box.addChild(t); box.addChild(l)
+        addChild(box)
+        box.setScale(0.6); box.alpha = 0
+        var seq: [SKAction] = [.group([.fadeIn(withDuration: 0.25), .scale(to: 1.06, duration: 0.25)]), .scale(to: 1, duration: 0.12)]
+        if party {                                                       // a slow pulse so it catches the eye
+            seq.append(.repeat(.sequence([.scale(to: 1.05, duration: 0.5), .scale(to: 1, duration: 0.5)]), count: max(1, Int(seconds))))
+        } else { seq.append(.wait(forDuration: seconds)) }
+        seq += [.fadeOut(withDuration: 0.6), .removeFromParent()]
+        box.run(.sequence(seq))
+        guard party else { return }
+        partyT = CGFloat(seconds)
+        let colors: [UInt32] = [0xF4727E, 0xF7C948, 0x4FB7A8, 0x6FB7E9, 0xB58AE0, 0xFFFFFF]
+        run(.repeat(.sequence([.run { [weak self] in
+            guard let self else { return }
+            for _ in 0..<34 {                                            // confetti from the top of the screen
+                let p = self.make(.splash, x: rnd(0, self.size.width), y: self.size.height - rnd(20, 120))
+                p.node.texture = Art.dot.tex
+                p.node.size = CGSize(width: rnd(8, 14), height: rnd(8, 14))
+                p.node.color = SKColor(cgColor: rgb(colors.randomElement()!)) ?? .white
+                p.node.colorBlendFactor = 1
+                p.alpha = 1; p.life = rnd(1.6, 2.6); p.maxLife = p.life
+                p.vx = rnd(-90, 90); p.vy = rnd(60, 260)
+            }
+        }, .wait(forDuration: 0.4)]), count: Int(seconds / 0.4) - 4), withKey: "party")
+    }
+
     func spotNear(_ x: CGFloat, within: CGFloat) -> GroundSpot? {
         spots.filter { $0.level > 0.3 && abs($0.node.position.x - x) < within }
             .min { abs($0.node.position.x - x) < abs($1.node.position.x - x) }

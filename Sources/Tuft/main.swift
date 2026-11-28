@@ -13,6 +13,15 @@ if let path = argValue("--icon") {
     exit(0)
 }
 
+if CommandLine.arguments.contains("--guard-check") {             // prints what the focus guard makes of the frontmost app
+    for (title, want) in [("Messenger | Facebook", "facebook.com"), ("Some video - YouTube", "youtube.com"), ("Home / X", "x.com"),
+                          ("Budget 2026 - Google Sheets", ""), ("A post : r/swift", "reddit.com"), ("Inbox (3) - Mail", "")] {
+        print(FocusGuard.titleMatch(title) ?? "" == want ? "ok" : "WRONG", title, "->", FocusGuard.titleMatch(title) ?? "none")
+    }
+    print(FocusGuard.hostMatch("https://www.instagram.com/p/abc") ?? "none", FocusGuard.hostMatch("https://docs.example.com/x.com") ?? "none")
+    FocusGuard.report { print($0); exit(0) }
+    RunLoop.main.run()
+}
 if CommandLine.arguments.contains("--check-update") {            // prints what "Check for updates…" would find
     Updates.latest { tag in
         print("current \(Updates.current) latest \(tag ?? "unreachable") newer \(tag.map { Updates.newer($0, than: Updates.current) } ?? false)")

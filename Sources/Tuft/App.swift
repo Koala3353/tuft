@@ -184,6 +184,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastRebuild = CACurrentMediaTime()
     private var lastChange = CACurrentMediaTime(), pollTick = 0
     private var soundOn = 0, soundOff = 0
+    private var doneUntil: Date?           // the menu bar says "done" for a while after a focus session
+    private var chimes: [NSSound] = []
+    private var guardPending = false, guardBusyUntil = 0.0
+    private var lastNag: [String: Double] = [:]
+
+    /// During focus: is the frontmost browser showing a social media tab? If so a pet goes up and deals with it.
+    private func guardTick() {
+        let now = CACurrentMediaTime()
+        guard s.focusing, s.guardMode > 0, !s.hidden, !asleep, !guardPending, now > guardBusyUntil else { return }
+        guardPending = true
+        FocusGuard.check { [weak self] hit in
+            guard let self else { return }
+            self.guardPending = false
+            guard let hit, self.s.focusing, self.s.guardMode > 0 else { return }
+            let closing = self.s.guardMode == 2
+            if !closing, let t = self.lastNag[hit.site], now - t < 60 { return }       // one reminder a minute per site
+            self.lastNag[hit.site] = now
+            self.guardBusyUntil = now + 8
+            let word = (closing ? ["nope!", "not now!", "back to work!", "focus!"] : ["psst, focus!", "back to work?", "later, ok?"]).randomElement()!
+            let act = { if closing { FocusGuard.close(hit) } }
+            // No pet to send, or the overlay is hidden under a full-screen window: just do it.
+            if self.scenes.first?.covered != false || self.scenes.first?.guardFly(word: word, hit: act) != true { act() }
+        }
+    }
+    private var focusMins: Int {
+        get { let m = UserDefaults.standard.integer(forKey: "focusMins"); return m > 0 ? m : 25 }
+        set { UserDefaults.standard.set(newValue, forKey: "focusMins") }
+    }
 
     private var demoWindow: NSWindow?
 
@@ -299,11 +327,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         s.busy = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .keyDown) < 5
         ticks += 1
         s.tickMood()
-        if let end = s.focusEnd, Date() >= end {            // focus session done: the pets celebrate
+        if let end = s.focusEnd, Date() >= end {            // focus session done: make sure you notice
             s.focusEnd = nil
             s.celebrate = true
             s.cheer(10)
-            NSSound(named: "Glass")?.play()
+            doneUntil = Date().addingTimeInterval(120)
+            chimes = []
+            for i in 0..<3 {                                // three chimes, not one
+                DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.75) { [weak self] in
+                    guard let snd = NSSound(named: "Glass")?.copy() as? NSSound else { return }
+                    self?.chimes.append(snd)
+                    snd.play()
+                }
+            }
+            let mins = focusMins
+            scenes.forEach { $0.banner("Focus done", "\(mins) minutes. Time for a break.", seconds: 10, party: true) }
+            rebuildMenu()
         }
         if ticks % 3 == 0 {
             let call = CallWatch.micInUse() || CallWatch.cameraInUse()
@@ -325,6 +364,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             followTimeOfDay()
         }
         if s.syncWeather, ticks % 1200 == 0 { syncNow() }
+        guardTick()
         refreshLiveItems()
         // The display itself is the authority on being asleep, in case a wake notification was missed.
         asleep = CGDisplayIsAsleep(CGMainDisplayID()) != 0
@@ -482,7 +522,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             badge = " \(mins)m"
             focusItem?.title = "Stop focus (\(mins) min left)"
         } else {
-            focusItem?.title = "Start 25-minute focus"
+            focusItem?.title = "Start focus"
+            if let d = doneUntil { if Date() < d { badge = " ✓ focus done" } else { doneUntil = nil } }
         }
         if statusItem.button?.title != badge { statusItem.button?.title = badge }
     }
@@ -521,9 +562,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let mood = header("")
         menu.addItem(mood)
         moodItem = mood
-        let focus = ActionItem("") { [unowned self] in
-            s.focusEnd = s.focusEnd == nil ? Date().addingTimeInterval(25 * 60) : nil
-            refreshLiveItems()
+        let focus: NSMenuItem
+        if s.focusing {
+            focus = ActionItem("") { [unowned self] in
+                s.focusEnd = nil
+                scenes.forEach { $0.banner("Focus stopped", "The pets are waking up.", seconds: 2.5, party: false) }
+                rebuildMenu()
+            }
+        } else {
+            let lengths = NSMenu()
+            for m in [15, 25, 45, 60] {
+                lengths.addItem(ActionItem("\(m) minutes", checked: focusMins == m) { [unowned self] in
+                    focusMins = m
+                    doneUntil = nil
+                    s.focusEnd = Date().addingTimeInterval(Double(m) * 60)
+                    scenes.forEach { $0.banner("Focus started", "\(m) minutes. The pets nap until it is done.", seconds: 3.5, party: false) }
+                    rebuildMenu()
+                })
+            }
+            lengths.addItem(.separator())
+            lengths.addItem(header("At the end: three chimes, a banner and confetti"))
+            focus = sub("Start focus", lengths)
         }
         menu.addItem(focus)
         focusItem = focus
@@ -698,6 +757,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if !s.hideOnCalls { s.quiet = false; applyPause(); applySound() }
             rebuildMenu()
         })
+        let guardMenu = NSMenu()
+        for (i, title) in ["Off", "A pet reminds me", "A pet closes the tab"].enumerated() {
+            guardMenu.addItem(ActionItem(title, checked: s.guardMode == i) { [unowned self] in
+                s.guardMode = i
+                if i > 0, FocusGuard.geckoRunning, !FocusGuard.trusted { FocusGuard.askForAccess() }
+                rebuildMenu()
+            })
+        }
+        guardMenu.addItem(.separator())
+        guardMenu.addItem(ActionItem("Sites…") { [unowned self] in
+            if let v = prompt("Social media sites", "Site names separated by commas. Leave empty to go back to the built-in list.", FocusGuard.siteList) {
+                FocusGuard.siteList = v.isEmpty ? FocusGuard.builtIn : v
+            }
+        })
+        guardMenu.addItem(.separator())
+        guardMenu.addItem(header("Only during a focus session"))
+        guardMenu.addItem(header("Safari, Chrome, Arc, Brave, Edge: macOS asks you to allow it"))
+        guardMenu.addItem(header(FocusGuard.trusted ? "Zen, Firefox: Accessibility is allowed" : "Zen, Firefox: needs Accessibility"))
+        if !FocusGuard.trusted {
+            guardMenu.addItem(ActionItem("Open Accessibility settings…") {
+                FocusGuard.askForAccess()
+                if let u = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") { NSWorkspace.shared.open(u) }
+            })
+        }
+        work.addItem(.separator())
+        work.addItem(sub("Social media during focus", guardMenu))
         menu.addItem(sub("While I work", work))
 
         let prefs = NSMenu()
